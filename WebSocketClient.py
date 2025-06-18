@@ -53,11 +53,10 @@ async def send_image(websocket, stream):
 
 async def receive_commands(websocket, car):
     while True:
-        message = json.loads(await websocket.recv())
-        print("Received message:", message)
-        jsonCar = message.get('Car', {})
-        car.steering = jsonCar.get('Steering', 0.0)
-        car.throttle = jsonCar.get('Throttle', 0.0)
+        jsonCar = json.loads(await websocket.recv())
+        print("Received message:", jsonCar)
+        car.steering = jsonCar.get('steering', 0.0)
+        car.throttle = jsonCar.get('throttle', 0.0)
 
 async def handle():
     stream = cv2.VideoCapture(__gstreamer_pipeline(
