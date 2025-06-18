@@ -60,9 +60,9 @@ async def hello():
                 else:
                     print("Error: Could not read frame.")
                     
-            jsonCar = json.loads(await websocket.recv())
-            car.steering = jsonCar.get('steering', 0.0)
-            car.throttle = jsonCar.get('throttle', 0.0)
+            # jsonCar = json.loads(await websocket.recv())
+            # car.steering = jsonCar.get('steering', 0.0)
+            # car.throttle = jsonCar.get('throttle', 0.0)
 
     cam.release()
 
