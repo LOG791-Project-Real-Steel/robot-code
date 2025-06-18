@@ -47,7 +47,7 @@ async def hello():
     car.steering = 0
     car.throttle_gain = 0.8
     print("ready to go!")
-    async with websockets.connect("ws://74.56.22.147:8765/robot") as websocket:
+    async with websockets.connect("ws://74.56.22.147:8765/receive") as websocket:
         while True:
             if not stream.isOpened():
                 print("Error: Could not open camera.")
