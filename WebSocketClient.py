@@ -73,7 +73,7 @@ async def handle():
     car.steering = 0
     car.throttle_gain = 0.8
     print("ready to go!")
-    async with websockets.connect("ws://74.56.22.147:8765/receive") as websocket:
+    async with websockets.connect("ws://74.56.22.147:8765/robot") as websocket:
         await asyncio.gather(
             receive_commands(websocket, car),
             send_image(websocket, stream),
