@@ -47,7 +47,7 @@ async def hello():
     car.steering = 0
     car.throttle_gain = 0.8
     print("ready to go!")
-    async with websockets.connect("ws://192.168.0.241:5000/receive") as websocket:
+    async with websockets.connect("ws://74.56.22.147:8765/robot") as websocket:
         while True:
             if not stream.isOpened():
                 print("Error: Could not open camera.")
@@ -60,10 +60,9 @@ async def hello():
                 else:
                     print("Error: Could not read frame.")
                     
-            message = json.loads(await websocket.recv())
-            jsonCar = message.get('Car', {})
-            car.steering = jsonCar.get('Steering', 0.0)
-            car.throttle = jsonCar.get('Throttle', 0.0)
+            jsonCar = json.loads(await websocket.recv())
+            car.steering = jsonCar.get('steering', 0.0)
+            car.throttle = jsonCar.get('throttle', 0.0)
 
     cam.release()
 
