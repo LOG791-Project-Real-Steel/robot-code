@@ -50,6 +50,7 @@ async def send_frames(websocket, stream):
                 await websocket.send(encoded_image.tobytes())
             else:
                 print("Error: Could not read frame.")
+        await asyncio.sleep(0.03)
 
 async def receive_controls(websocket, car):
     while True:
@@ -58,8 +59,8 @@ async def receive_controls(websocket, car):
             print(f"{jsonCar}")
             car.steering = jsonCar.get('steering', 0.0)
             car.throttle = jsonCar.get('throttle', 0.0)
-        except:
-            pass
+        except websockets.ConnectionClosed as e:
+            print(f"[receive_controls] WebSocket closed: {e.code} - {e.reason}")
 
 
 
