@@ -56,7 +56,6 @@ async def receive_controls(websocket, car):
     while True:
         try:
             jsonCar = json.loads(await websocket.recv())
-            print(f"{jsonCar}")
             car.steering = jsonCar.get('steering', 0.0)
             car.throttle = jsonCar.get('throttle', 0.0)
         except websockets.ConnectionClosed as e:
@@ -64,7 +63,7 @@ async def receive_controls(websocket, car):
 
 
 
-async def main():
+async def connect_loop():
     stream = cv2.VideoCapture(__gstreamer_pipeline(camera_id=0, flip_method=0), cv2.CAP_GSTREAMER)    
     car = NvidiaRacecar()
     car.steering_gain = -1
@@ -75,11 +74,25 @@ async def main():
     car.throttle = 0
     print("ready to go!")
 
-    async with websockets.connect("ws://74.56.22.147:8765/robot") as websocket:
-        await asyncio.gather(
-            send_frames(websocket, stream),
-            receive_controls(websocket, car)
-        )
+    while True:
+        print("Attempting to connect to WebSocket server...")
+        try:
+            async with websockets.connect("ws://74.56.22.147:8765/robot") as websocket:
+                print("WebSocket connected.")
+                await asyncio.gather(
+                    send_frames(websocket, stream),
+                    receive_controls(websocket, car)
+                )
+        except (websockets.ConnectionClosedError, OSError) as e:
+            print(f"[main] Connection failed: {e}")
+        except Exception as e:
+            print(f"[main] Unexpected error: {e}")
+        
+        print("Reconnecting in 5 seconds...")
+        await asyncio.sleep(5)
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    try:
+        asyncio.get_event_loop().run_until_complete(connect_loop())
+    except KeyboardInterrupt:
+        print("Script stopped by user.")
