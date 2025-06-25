@@ -37,10 +37,36 @@ def __gstreamer_pipeline(
             )
     )
    
+async def send_image(websocket, stream): 
+    while True:
+        await asyncio.sleep(0.017)
+        if not stream.isOpened():
+            print("Error: Could not open camera.")
+        else:
+            ret, frame = stream.read()
+            if ret:
+                frame = np.ascontiguousarray(frame, dtype=np.uint8)
+                _, encoded_image = cv2.imencode('.jpg', frame)
+                await websocket.send(encoded_image.tobytes())
+            else:
+                print("Error: Could not read frame.")
 
+async def receive_commands(websocket, car):
+    while True:
+        jsonCar = json.loads(await websocket.recv())
+        print("Received message:", jsonCar)
+        car.steering = jsonCar.get('steering', 0.0)
+        car.throttle = jsonCar.get('throttle', 0.0)
 
-async def hello():
-    stream = cv2.VideoCapture(__gstreamer_pipeline(camera_id=0, flip_method=0), cv2.CAP_GSTREAMER)    
+async def handle():
+    stream = cv2.VideoCapture(__gstreamer_pipeline(
+        camera_id=0, 
+        capture_width=1280,
+        capture_height=720,
+        display_width=1280,
+        display_height=720,
+        framerate=60,
+        flip_method=0), cv2.CAP_GSTREAMER)    
     car = NvidiaRacecar()
     car.steering_gain = -1
     car.steering_offset = 0
@@ -48,23 +74,13 @@ async def hello():
     car.throttle_gain = 0.8
     print("ready to go!")
     async with websockets.connect("ws://74.56.22.147:8765/robot") as websocket:
-        while True:
-            if not stream.isOpened():
-                print("Error: Could not open camera.")
-            else:
-                ret, frame = stream.read()
-                if ret:
-                    frame = np.ascontiguousarray(frame, dtype=np.uint8)
-                    _, encoded_image = cv2.imencode('.jpg', frame)
-                    await websocket.send(encoded_image.tobytes())
-                else:
-                    print("Error: Could not read frame.")
-                    
-            jsonCar = json.loads(await websocket.recv())
-            car.steering = jsonCar.get('steering', 0.0)
-            car.throttle = jsonCar.get('throttle', 0.0)
-
-    cam.release()
+        await asyncio.gather(
+            receive_commands(websocket, car),
+            send_image(websocket, stream),
+        )
+    stream.release()
+    await websocket.close()
+    
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(hello())
+    asyncio.get_event_loop().run_until_complete(handle())
