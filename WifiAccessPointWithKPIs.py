@@ -83,8 +83,8 @@ async def control_server(car):
         port=CONTROL_PORT
     )
     print(f"Control server listening on port {CONTROL_PORT}")
-    await server.serve_forever()
-
+    # Just return the server, don't try to serve forever
+    return server
 
 async def video_server(stream):
     async def handler(reader, writer):
@@ -94,9 +94,9 @@ async def video_server(stream):
         await writer.wait_closed()
 
     server = await asyncio.start_server(handler, host='0.0.0.0', port=VIDEO_PORT)
-    async with server:
-        print(f"Video server listening on port {VIDEO_PORT}")
-        await server.serve_forever()
+    print(f"Video server listening on port {VIDEO_PORT}")
+    return server
+
 
 async def main():
     car = NvidiaRacecar()
@@ -109,14 +109,13 @@ async def main():
         return
 
     print("Robot is ready.")
-    await asyncio.gather(
-        control_server(car),
-        video_server(stream)
-    )
+    
+    # Start both servers
+    control = await control_server(car)
+    video = await video_server(stream)
+
+    # Keep the main coroutine alive
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(main())
-    finally:
-        loop.close()
+    asyncio.get_event_loop().run_until_complete(main())
