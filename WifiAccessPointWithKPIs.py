@@ -34,6 +34,7 @@ def __gstreamer_pipeline(
     )
 
 async def handle_control(reader, car):
+    print("hello control?")
     buffer = ""
     while True:
         try:
@@ -57,6 +58,7 @@ async def handle_control(reader, car):
             break
 
 async def handle_video(writer, stream):
+    print("hello video?")
     while True:
         await asyncio.sleep(0.017)  # ~60 FPS
         if not stream.isOpened():
