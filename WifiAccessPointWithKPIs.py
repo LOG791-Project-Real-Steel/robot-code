@@ -70,7 +70,6 @@ async def handle_video(writer, stream):
             data = jpeg.tobytes()
             size = struct.pack('>I', len(data))  # 4-byte size prefix
             try:
-                print("sending " + data)
                 writer.write(size + data)
                 await writer.drain()
             except (ConnectionResetError, BrokenPipeError):
