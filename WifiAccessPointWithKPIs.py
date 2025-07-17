@@ -82,9 +82,9 @@ async def control_server(car):
         host='0.0.0.0',
         port=CONTROL_PORT
     )
-    async with server:
-        print(f"Control server listening on port {CONTROL_PORT}")
-        await server.serve_forever()
+    print(f"Control server listening on port {CONTROL_PORT}")
+    await server.serve_forever()
+
 
 async def video_server(stream):
     async def handler(reader, writer):
@@ -115,4 +115,8 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
