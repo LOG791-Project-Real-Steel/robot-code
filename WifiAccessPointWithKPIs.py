@@ -45,10 +45,13 @@ async def handle_control(reader, car):
                 break
 
             buffer += data.decode('utf-8')
+            print(f"buffer{str(buffer)}")
             while '\n' in buffer:
+                print("in while loop")
                 line, buffer = buffer.split('\n', 1)
                 try:
                     msg = json.loads(line)
+                    print(f"msg {str(msg)}")
                     car.steering = float(msg.get("steering", 0.0))
                     car.throttle = float(msg.get("throttle", 0.0))
                     print(f"Steering: {car.steering:.2f}, Throttle: {car.throttle:.2f}")
