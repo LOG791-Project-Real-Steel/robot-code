@@ -93,7 +93,6 @@ async def video_server(stream):
         print("Video client connected.")
         await handle_video(writer, stream)
         writer.close()
-        await writer.wait_closed()
 
     server = await asyncio.start_server(handler, host='0.0.0.0', port=VIDEO_PORT)
     print(f"Video server listening on port {VIDEO_PORT}")
