@@ -38,6 +38,7 @@ async def handle_control(reader, car):
     buffer = ""
     while True:
         try:
+            print("Trying to read data")
             data = await reader.read(1024)
             if not data:
                 print("Control connection closed.")
