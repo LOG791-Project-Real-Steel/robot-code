@@ -8,7 +8,7 @@ import numpy as np
 import struct
 from jetracer.nvidia_racecar import NvidiaRacecar
 
-CONTROL_PORT = 9000
+CONTROL_PORT = 9001
 VIDEO_PORT = 9001
 
 def __gstreamer_pipeline(
