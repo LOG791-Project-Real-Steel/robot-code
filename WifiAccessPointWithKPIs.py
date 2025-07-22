@@ -119,22 +119,31 @@ async def main():
             print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
             exit
 
-    # car = NvidiaRacecar()
-    # car.steering = 0.0
-    # car.throttle = 0.0
+    car = NvidiaRacecar()
+    car.steering = 0.0
+    car.throttle = 0.0
 
-    # stream = cv2.VideoCapture(__gstreamer_pipeline(), cv2.CAP_GSTREAMER)
-    # if not stream.isOpened():
-    #     print("Failed to open camera.")
-    #     return
+    stream = cv2.VideoCapture(
+        __gstreamer_pipeline(
+            capture_width=width,
+            capture_height=height,
+            display_width=width,
+            display_height=height,
+            framerate=fps
+        ), 
+        cv2.CAP_GSTREAMER
+    )
+    if not stream.isOpened():
+        print("Failed to open camera.")
+        return
 
-    # print("Robot is ready.")
+    print("Robot is ready.")
     
-    # # Start both servers
-    # await server(car, stream)
+    # Start both servers
+    await server(car, stream)
 
-    # # Keep the main coroutine alive
-    # await asyncio.Event().wait()
+    # Keep the main coroutine alive
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
