@@ -123,18 +123,19 @@ async def main():
     car = NvidiaRacecar()
     car.steering = 0.0
     car.throttle = 0.0
+    stream = cv2.VideoCapture("v4l2src device=/dev/video0 ! video/x-raw, width=1280, height=720, framerate=60/1 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
 
-    stream = cv2.VideoCapture(
-        # __gstreamer_pipeline(
-        #     capture_width=width,
-        #     capture_height=height,
-        #     display_width=width,
-        #     display_height=height,
-        #     framerate=fps
-        # ), 
-        "v4l2src device=/dev/video0 ! video/x-raw, width=1280, height=720, framerate=60/1 ! videoconvert ! appsink"
-        cv2.CAP_GSTREAMER
-    )
+    # stream = cv2.VideoCapture(
+    #     # __gstreamer_pipeline(
+    #     #     capture_width=width,
+    #     #     capture_height=height,
+    #     #     display_width=width,
+    #     #     display_height=height,
+    #     #     framerate=fps
+    #     # ), 
+    #     "v4l2src device=/dev/video0 ! video/x-raw, width=1280, height=720, framerate=60/1 ! videoconvert ! appsink",
+    #     cv2.CAP_GSTREAMER
+    # )
     if not stream.isOpened():
         print("Failed to open camera.")
         return
