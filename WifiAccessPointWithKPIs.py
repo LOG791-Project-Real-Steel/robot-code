@@ -96,13 +96,28 @@ async def server(car, stream):
 
 async def main():
     
-    n = len(sys.argv)
+    width = 1280
+    height = 720
+    fps = 30
 
+    n = len(sys.argv)
     print("\nArguments passed:", end = " ")
     for i in range(1, n):
-        print(sys.argv[i], end = " ")
-        
-
+        arg = sys.argv[i]
+        print(arg, end = " ")
+        try:
+            if arg.startswith("res"):
+                res = arg[3:].split('=')[1].split('x')
+                width = res[0]
+                height = res[1]
+            if arg.startswith("fps"):
+                fps = arg[3:].split('=')[1]
+            
+            if not width.isnumeric() or  not height.isnumeric() or not fps.isnumeric():
+                raise ValueError()
+        except Exception as e:
+            print(f"args error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
+            exit
 
     # car = NvidiaRacecar()
     # car.steering = 0.0
