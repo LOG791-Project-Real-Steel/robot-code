@@ -33,92 +33,68 @@ def __gstreamer_pipeline(
         )
     )
 
-async def handle_control(reader, writer, car, stream):
-    print("hello control?")
+async def handle_video(stream, writer):
+    if not stream.isOpened():
+        print("Camera error.")
+        return
+    ret, frame = stream.read()
+    if ret:
+        _, jpeg = cv2.imencode('.jpg', frame)
+        data = jpeg.tobytes()
+        size = struct.pack('>I', len(data))  # 4-byte size prefix
+        writer.write(size + data)
+        await writer.drain()
+    else:
+        print("Frame read failed.")
+
+def handle_controls(car, data, buffer):
+    buffer += data.decode('utf-8')
+    print(f"buffer{str(buffer)}")
+    while '\n' in buffer:
+        line, buffer = buffer.split('\n', 1)
+        try:
+            msg = json.loads(line)
+            print(f"msg {str(msg)}")
+            car.steering = float(msg.get("steering", 0.0))
+            car.throttle = float(msg.get("throttle", 0.0))
+            print(f"Steering: {car.steering:.2f}, Throttle: {car.throttle:.2f}")
+        except json.JSONDecodeError:
+            print("Invalid JSON:", line)
+
+
+async def handle(reader, writer, car, stream):
+    print("Client connected")
     buffer = ""
+
     while True:
         try:
-            print("Trying to read data")
+            # Read control data and send to robot car
             data = await reader.read(1024)
             if not data:
-                print("Control connection closed.")
+                print("Client connection closed.")
                 break
+            handle_controls(car, data, buffer)
 
-            buffer += data.decode('utf-8')
-            print(f"buffer{str(buffer)}")
-            while '\n' in buffer:
-                print("in while loop")
-                line, buffer = buffer.split('\n', 1)
-                try:
-                    msg = json.loads(line)
-                    print(f"msg {str(msg)}")
-                    car.steering = float(msg.get("steering", 0.0))
-                    car.throttle = float(msg.get("throttle", 0.0))
-                    print(f"Steering: {car.steering:.2f}, Throttle: {car.throttle:.2f}")
-                except json.JSONDecodeError:
-                    print("Invalid JSON:", line)
-
-            if not stream.isOpened():
-                print("Camera error.")
-                continue
-            ret, frame = stream.read()
-            if ret:
-                _, jpeg = cv2.imencode('.jpg', frame)
-                data = jpeg.tobytes()
-                size = struct.pack('>I', len(data))  # 4-byte size prefix
-                try:
-                    writer.write(size + data)
-                    await writer.drain()
-                except (ConnectionResetError, BrokenPipeError):
-                    print("Video client disconnected")
-                    break
-            else:
-                print("Frame read failed.")
+            # Capture frame from camera and send to client
+            try:
+                await handle_video(stream, writer)
+            except (ConnectionResetError, BrokenPipeError):
+                print("Video client disconnected")
+                break
+            
         except asyncio.IncompleteReadError:
             print("Control reader closed.")
             break
 
-async def handle_video(writer, stream):
-    print("hello video?")
-    while True:
-        await asyncio.sleep(0.017)  # ~60 FPS
-        if not stream.isOpened():
-            print("Camera error.")
-            continue
-        ret, frame = stream.read()
-        if ret:
-            _, jpeg = cv2.imencode('.jpg', frame)
-            data = jpeg.tobytes()
-            size = struct.pack('>I', len(data))  # 4-byte size prefix
-            try:
-                writer.write(size + data)
-                await writer.drain()
-            except (ConnectionResetError, BrokenPipeError):
-                print("Video client disconnected")
-                break
-        else:
-            print("Frame read failed.")
-
-async def control_server(car, stream):
+async def server(car, stream):
     server = await asyncio.start_server(
-        lambda r, w: handle_control(r, w, car, stream),
+        lambda r, w: handle(r, w, car, stream),
         host='0.0.0.0',
         port=CONTROL_PORT
     )
     print(f"Control server listening on port {CONTROL_PORT}")
     # Just return the server, don't try to serve forever
     return server
-
-async def video_server(stream):
-    async def handler(reader, writer):
-        print("Video client connected.")
-        await handle_video(writer, stream)
-        writer.close()
-
-    server = await asyncio.start_server(handler, host='0.0.0.0', port=VIDEO_PORT)
-    print(f"Video server listening on port {VIDEO_PORT}")
-    return server
-
 
 async def main():
     car = NvidiaRacecar()
@@ -133,8 +109,7 @@ async def main():
     print("Robot is ready.")
     
     # Start both servers
-    control = await control_server(car, stream)
-    #video = await video_server(stream)
+    await server(car, stream)
 
     # Keep the main coroutine alive
     await asyncio.Event().wait()
