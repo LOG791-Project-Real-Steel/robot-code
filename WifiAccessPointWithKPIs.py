@@ -113,10 +113,10 @@ async def main():
             if arg.startswith("fps"):
                 fps = arg[3:].split('=')[1]
             
-            if not width.isnumeric() or  not height.isnumeric() or not fps.isnumeric():
+            if not str(width).isnumeric() or  not str(height).isnumeric() or not str(fps).isnumeric():
                 raise ValueError()
         except Exception as e:
-            print(f"args error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
+            print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
             exit
 
     # car = NvidiaRacecar()
