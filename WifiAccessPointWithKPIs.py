@@ -67,11 +67,11 @@ async def handle(reader, writer, car, stream):
     while True:
         try:
             # Read control data and send to robot car
-            data = await reader.read(1024)
-            if not data:
-                print("Client connection closed.")
-                break
-            handle_controls(car, data, buffer)
+            # data = await reader.read(1024)
+            # if not data:
+            #     print("Client connection closed.")
+            #     break
+            # handle_controls(car, data, buffer)
 
             # Capture frame from camera and send to client
             try:
