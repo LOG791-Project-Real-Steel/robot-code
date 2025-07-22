@@ -102,10 +102,10 @@ async def main():
 
     n = len(sys.argv)
     print("\nArguments passed:", end = " ")
-    for i in range(1, n):
-        arg = sys.argv[i]
-        print(arg, end = " ")
-        try:
+    try:
+        for i in range(1, n):
+            arg = sys.argv[i]
+            print(arg, end = " ")
             if arg.startswith("res"):
                 res = arg[3:].split('=')[1].split('x')
                 width = res[0]
@@ -113,11 +113,12 @@ async def main():
             if arg.startswith("fps"):
                 fps = arg[3:].split('=')[1]
             
-            if not str(width).isnumeric() or  not str(height).isnumeric() or not str(fps).isnumeric():
-                raise ValueError()
-        except Exception as e:
-            print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
-            exit
+            width = int(width)
+            height = int(height)
+            fps = int(fps)
+    except Exception as e:
+        print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
+        exit
 
     car = NvidiaRacecar()
     car.steering = 0.0
