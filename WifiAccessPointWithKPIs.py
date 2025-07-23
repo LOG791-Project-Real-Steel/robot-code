@@ -4,6 +4,7 @@
 import sys
 import asyncio
 import json
+import time
 import cv2
 import numpy as np
 import struct
@@ -56,6 +57,12 @@ def handle_controls(car, data, buffer):
             msg = json.loads(line)
             car.steering = float(msg.get("steering", 0.0))
             car.throttle = float(msg.get("throttle", 0.0))
+
+            if "timestamp" in msg:
+                sent_time = msg["timestamp"] / 1000.0  # convert ms to seconds
+                now = time.time()
+                latency_ms = int((now - sent_time) * 1000)
+                print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
 
