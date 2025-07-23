@@ -43,7 +43,14 @@ async def handle_video(stream, writer):
     if ret:
         _, jpeg = cv2.imencode('.jpg', frame)
         data = jpeg.tobytes()
-        size = struct.pack('>I', len(data))  # 4-byte size prefix
+
+        # Get current time in milliseconds
+        timestamp_ms = int(time.time() * 1000)
+        timestamp_bytes = struct.pack('<Q', timestamp_ms)  # 8-byte unsigned long long, big-endian
+
+        payload = timestamp_bytes + data
+        size = struct.pack('>I', len(payload))  # 4-byte size prefix
+
         writer.write(size + data)
         await writer.drain()
     else:
