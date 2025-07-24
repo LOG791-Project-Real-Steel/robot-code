@@ -64,19 +64,14 @@ def handle_controls(car, data, buffer):
         line, buffer = buffer.split('\n', 1)
         try:
             msg = json.loads(line)
-            if msg.get("type") == "pong" and "timestamp" in msg:
-                now = int(time.time() * 1000)
-                rtt = now - int(msg["timestamp"])
-                print(f"[Ping] RTT to Oculus: {rtt} ms")
-            elif "steering" in msg or "throttle" in msg:
-                car.steering = float(msg.get("steering", 0.0))
-                car.throttle = float(msg.get("throttle", 0.0))
+            car.steering = float(msg.get("steering", 0.0))
+            car.throttle = float(msg.get("throttle", 0.0))
 
-                if "timestamp" in msg:
-                    sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
-                    now = time.time()
-                    latency_ms = int((now - sent_time) * 1000)
-                    print(f"[Latency] Control latency: {latency_ms} ms")
+            if "timestamp" in msg:
+                sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
+                now = time.time()
+                latency_ms = int((now - sent_time) * 1000)
+                print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
@@ -85,20 +80,6 @@ def handle_controls(car, data, buffer):
 async def handle(reader, writer, car, stream):
     print("Client connected")
     buffer = ""
-
-    async def ping_loop():
-        while True:
-            try:
-                timestamp = int(time.time() * 1000)
-                ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
-                writer.write(ping_msg.encode('utf-8'))
-                await writer.drain()
-                await asyncio.sleep(1)  # Ping every second
-            except (ConnectionResetError, BrokenPipeError):
-                print("Ping connection lost.")
-                break
-
-    asyncio.ensure_future(ping_loop())  # Start pinging in background
 
     while True:
         try:
@@ -120,6 +101,48 @@ async def handle(reader, writer, car, stream):
             print("Control reader closed.")
             break
 
+
+async def handle_ping(reader, writer):
+    async def ping_loop():
+        while True:
+            try:
+                timestamp = int(time.time() * 1000)
+                ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
+                writer.write(ping_msg.encode('utf-8'))
+                await writer.drain()
+                await asyncio.sleep(1)  # Ping every second
+            except (ConnectionResetError, BrokenPipeError):
+                print("Ping connection lost.")
+                break
+
+    asyncio.ensure_future(ping_loop())  # Start pinging in background
+
+    buffer = ""
+
+    while True:
+        try:
+            # Read control data and send to robot car
+            data = await reader.read(1024)
+            if not data:
+                print("Client connection closed.")
+                break
+            buffer = handle_controls(car, data, buffer)
+            buffer += data.decode('utf-8')
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                try:
+                    msg = json.loads(line)
+                    now = int(time.time() * 1000)
+                    rtt = now - int(msg["timestamp"])
+                    print(f"[Ping] RTT to Oculus: {rtt} ms")
+                except json.JSONDecodeError:
+                    print("Invalid JSON:", line)
+            return buffer
+            
+        except asyncio.IncompleteReadError:
+            print("Control reader closed.")
+            break
+
 async def server(car, stream):
     server = await asyncio.start_server(
         lambda r, w: handle(r, w, car, stream),
@@ -127,6 +150,13 @@ async def server(car, stream):
         port=CONTROL_PORT
     )
     print(f"Control server listening on port {CONTROL_PORT}")
+
+    await asyncio.start_server(
+        lambda r, w: handle_ping(r, w),
+        host='0.0.0.0',
+        port=9003
+    )
+
     # Just return the server, don't try to serve forever
     return server
 
