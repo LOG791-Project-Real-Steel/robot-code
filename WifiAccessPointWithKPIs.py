@@ -64,14 +64,19 @@ def handle_controls(car, data, buffer):
         line, buffer = buffer.split('\n', 1)
         try:
             msg = json.loads(line)
-            car.steering = float(msg.get("steering", 0.0))
-            car.throttle = float(msg.get("throttle", 0.0))
+            if msg.get("type") == "pong" and "timestamp" in msg:
+                now = int(time.time() * 1000)
+                rtt = now - int(msg["timestamp"])
+                print(f"[Ping] RTT to Oculus: {rtt} ms")
+            elif "steering" in msg or "throttle" in msg:
+                car.steering = float(msg.get("steering", 0.0))
+                car.throttle = float(msg.get("throttle", 0.0))
 
-            if "timestamp" in msg:
-                sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
-                now = time.time()
-                latency_ms = int((now - sent_time) * 1000)
-                print(f"[Latency] Control latency: {latency_ms} ms")
+                if "timestamp" in msg:
+                    sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
+                    now = time.time()
+                    latency_ms = int((now - sent_time) * 1000)
+                    print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
@@ -93,7 +98,7 @@ async def handle(reader, writer, car, stream):
                 print("Ping connection lost.")
                 break
 
-    asyncio.create_task(ping_loop())  # Start pinging in background
+    asyncio.ensure_future(ping_loop())  # Start pinging in background
 
     while True:
         try:
