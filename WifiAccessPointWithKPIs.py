@@ -46,7 +46,7 @@ async def handle_video(stream, writer):
 
         # Get current time in milliseconds
         timestamp_ms = int(time.time() * 1000)
-        timestamp_bytes = struct.pack('>Q', timestamp_ms)  # 8-byte unsigned long long, big-endian
+        timestamp_bytes = struct.pack('<Q', timestamp_ms)  # 8-byte unsigned long long, big-endian
 
         payload = timestamp_bytes + data
         size = struct.pack('>I', len(payload))  # 4-byte size prefix
