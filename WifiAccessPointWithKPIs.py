@@ -85,9 +85,7 @@ def handle_controls(car, data, buffer):
                 sent_time_ms = msg["timestamp"]  # convert ms to seconds
 
                 # Do initial clock sync
-                if not time_sync_done:
-                    set_system_time_from_timestamp(sent_time_ms)
-                    time_sync_done = True
+                set_system_time_from_timestamp(sent_time_ms)
 
                 now = time.time()
                 latency_ms = int((now - (sent_time_ms/ 1000)) * 1000)
