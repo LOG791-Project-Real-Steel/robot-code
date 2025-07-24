@@ -72,7 +72,7 @@ async def handle_video(stream, writer):
         print("Frame read failed.")
 
 def handle_controls(car, data, buffer):
-    global first_sync_done
+    global time_sync_done
     buffer += data.decode('utf-8')
     while '\n' in buffer:
         line, buffer = buffer.split('\n', 1)
@@ -85,9 +85,9 @@ def handle_controls(car, data, buffer):
                 sent_time_ms = msg["timestamp"]  # convert ms to seconds
 
                 # Do initial clock sync
-                if not first_sync_done:
+                if not time_sync_done:
                     set_system_time_from_timestamp(sent_time_ms)
-                    first_sync_done = True
+                    time_sync_done = True
 
                 now = time.time()
                 latency_ms = int((now - (sent_time_ms/ 1000)) * 1000)
