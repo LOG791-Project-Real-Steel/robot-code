@@ -74,11 +74,26 @@ def handle_controls(car, data, buffer):
                 print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
+    return buffer
 
 
 async def handle(reader, writer, car, stream):
     print("Client connected")
     buffer = ""
+
+    async def ping_loop():
+        while True:
+            try:
+                timestamp = int(time.time() * 1000)
+                ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
+                writer.write(ping_msg.encode('utf-8'))
+                await writer.drain()
+                await asyncio.sleep(1)  # Ping every second
+            except (ConnectionResetError, BrokenPipeError):
+                print("Ping connection lost.")
+                break
+
+    asyncio.create_task(ping_loop())  # Start pinging in background
 
     while True:
         try:
@@ -87,7 +102,7 @@ async def handle(reader, writer, car, stream):
             if not data:
                 print("Client connection closed.")
                 break
-            handle_controls(car, data, buffer)
+            buffer = handle_controls(car, data, buffer)
 
             # Capture frame from camera and send to client
             try:
