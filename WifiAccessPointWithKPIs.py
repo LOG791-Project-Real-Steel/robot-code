@@ -72,6 +72,7 @@ async def handle_video(stream, writer):
         print("Frame read failed.")
 
 def handle_controls(car, data, buffer):
+    global first_sync_done
     buffer += data.decode('utf-8')
     while '\n' in buffer:
         line, buffer = buffer.split('\n', 1)
