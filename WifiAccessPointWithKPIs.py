@@ -15,19 +15,6 @@ from jetracer.nvidia_racecar import NvidiaRacecar
 CONTROL_PORT = 9002
 VIDEO_PORT = 9001
 
-time_sync_done = False
-
-
-def set_system_time_from_timestamp(unix_ms):
-    unix_sec = int(unix_ms / 1000)
-    dt = datetime.datetime.fromtimestamp(unix_sec)
-    date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-    try:
-        subprocess.run(['sudo', 'date', '-s', date_str], check=True)
-        print(f"[Time Sync] Jetson system time set to {date_str} UTC")
-    except subprocess.CalledProcessError as e:
-        print("[Time Sync] Failed to set system time:", e)
-
 def __gstreamer_pipeline(
         camera_id=0,
         capture_width=1280,
@@ -72,7 +59,6 @@ async def handle_video(stream, writer):
         print("Frame read failed.")
 
 def handle_controls(car, data, buffer):
-    global time_sync_done
     buffer += data.decode('utf-8')
     while '\n' in buffer:
         line, buffer = buffer.split('\n', 1)
@@ -82,13 +68,9 @@ def handle_controls(car, data, buffer):
             car.throttle = float(msg.get("throttle", 0.0))
 
             if "timestamp" in msg:
-                sent_time_ms = msg["timestamp"]  # convert ms to seconds
-
-                # Do initial clock sync
-                set_system_time_from_timestamp(sent_time_ms)
-
+                sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
                 now = time.time()
-                latency_ms = int((now - (sent_time_ms/ 1000)) * 1000)
+                latency_ms = int((now - sent_time) * 1000)
                 print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
