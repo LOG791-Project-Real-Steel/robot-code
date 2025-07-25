@@ -119,27 +119,27 @@ async def handle_ping(reader, writer):
     asyncio.ensure_future(ping_loop())  # Start pinging in background
 
     buffer = ""
-
     while True:
         try:
-            # Read control data and send to robot car
             data = await reader.read(1024)
+            print("read data")
             if not data:
                 print("Client connection closed.")
                 break
             buffer += data.decode('utf-8')
+            print("buffer")
             while '\n' in buffer:
+                print("in buffer while loop")
                 line, buffer = buffer.split('\n', 1)
                 try:
                     msg = json.loads(line)
+                    print(msg)
                     if msg["type"] == "pong":
                         now = int(time.time() * 1000)
                         rtt = now - int(msg["timestamp"])
                         print(f"[Ping] RTT to Oculus: {rtt} ms")
                 except json.JSONDecodeError:
-                    print("Invalid JSON:", line)
-            return buffer
-            
+                    print("Invalid JSON:", line)            
         except asyncio.IncompleteReadError:
             print("Control reader closed.")
             break
