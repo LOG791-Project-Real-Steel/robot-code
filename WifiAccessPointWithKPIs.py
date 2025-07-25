@@ -126,7 +126,6 @@ async def handle_ping(reader, writer):
             if not data:
                 print("Client connection closed.")
                 break
-            buffer = handle_controls(car, data, buffer)
             buffer += data.decode('utf-8')
             while '\n' in buffer:
                 line, buffer = buffer.split('\n', 1)
