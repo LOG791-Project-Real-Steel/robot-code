@@ -67,11 +67,11 @@ def handle_controls(car, data, buffer):
             car.steering = float(msg.get("steering", 0.0))
             car.throttle = float(msg.get("throttle", 0.0))
 
-            if "timestamp" in msg:
-                sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
-                now = time.time()
-                latency_ms = int((now - sent_time) * 1000)
-                print(f"[Latency] Control latency: {latency_ms} ms")
+            # if "timestamp" in msg:
+            #     sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
+            #     now = time.time()
+            #     latency_ms = int((now - sent_time) * 1000)
+            #     print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
@@ -106,6 +106,7 @@ async def handle_ping(reader, writer):
     async def ping_loop():
         while True:
             try:
+                print("sending ping")
                 timestamp = int(time.time() * 1000)
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
                 writer.write(ping_msg.encode('utf-8'))
@@ -131,9 +132,10 @@ async def handle_ping(reader, writer):
                 line, buffer = buffer.split('\n', 1)
                 try:
                     msg = json.loads(line)
-                    now = int(time.time() * 1000)
-                    rtt = now - int(msg["timestamp"])
-                    print(f"[Ping] RTT to Oculus: {rtt} ms")
+                    if msg["type"] == "pong":
+                        now = int(time.time() * 1000)
+                        rtt = now - int(msg["timestamp"])
+                        print(f"[Ping] RTT to Oculus: {rtt} ms")
                 except json.JSONDecodeError:
                     print("Invalid JSON:", line)
             return buffer
