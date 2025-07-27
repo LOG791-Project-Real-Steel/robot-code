@@ -82,7 +82,6 @@ async def handle_control_and_video(reader, writer, car, stream):
             time_read_start = int(time.time() * 1000)
             data = await reader.read(1024)
             if not data:
-                print("Client connection closed.")
                 break
             buffer = handle_controls(car, data, buffer, time_read_start)
 
@@ -110,12 +109,13 @@ async def ping_loop(writer):
 async def handle_ping(reader, writer):
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
+    ping_count = 0
+    network_delay_total = 0
     buffer = ""
     while True:
         try:
             data = await reader.read(1024)
             if not data:
-                print("Client connection closed.")
                 break
             buffer += data.decode('utf-8')
             while '\n' in buffer:
@@ -125,7 +125,10 @@ async def handle_ping(reader, writer):
                     if msg["type"] == "pong":
                         now = int(time.time() * 1000)
                         rtt = now - int(msg["timestamp"])
+                        ping_count += 1
+                        network_delay_total += rtt/2
                         print(f"[Ping] RTT to Oculus: {rtt} ms")
+                        print(f"[Ping] Network delay avg: {network_delay_total/ping_count} ms")
                 except json.JSONDecodeError:
                     print("Invalid JSON:", line)            
         except asyncio.IncompleteReadError:
