@@ -17,6 +17,9 @@ width = 1280
 height = 720
 fps = 30
 
+
+apply_controls_delays = []
+
 def __gstreamer_pipeline(
         camera_id=0,
         capture_width=width,
@@ -56,6 +59,8 @@ async def handle_video(stream, writer):
         print("Frame read failed.")
 
 def handle_controls(car, data, buffer, time_read_start):
+    global apply_controls_delays
+
     buffer += data.decode('utf-8')
     while '\n' in buffer:
         line, buffer = buffer.split('\n', 1)
@@ -66,7 +71,7 @@ def handle_controls(car, data, buffer, time_read_start):
 
             now = int(time.time() * 1000)
             apply_controls_delay = now - time_read_start
-            print(f"Time to apply controls : {apply_controls_delay}")
+            apply_controls_delays.append(apply_controls_delay)
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
@@ -200,4 +205,11 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    try:
+        asyncio.get_event_loop().run_until_complete(main())
+    except KeyboardInterrupt as e:
+        print(f"Exiting : {e}")
+
+        print(f"Average time to apply controls after receiving : {sum(apply_controls_delays)/len(apply_controls_delays)} ms")
+
+        exit
