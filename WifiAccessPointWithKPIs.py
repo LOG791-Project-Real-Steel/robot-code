@@ -71,7 +71,7 @@ async def handle_video(stream, writer):
     
     now = int(time.time() * 1000)
     read_video_frame_delay = now - time_read_start
-    read_video_frame_delays.append(read_video_frame_delay)
+    read_video_frame_delays.append((now, read_video_frame_delay))
 
 
 def handle_controls(car, data, buffer, time_read_start):
@@ -87,7 +87,7 @@ def handle_controls(car, data, buffer, time_read_start):
 
             now = int(time.time() * 1000)
             apply_controls_delay = now - time_read_start
-            apply_controls_delays.append(apply_controls_delay)
+            apply_controls_delays.append((now, apply_controls_delay))
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
@@ -150,7 +150,7 @@ async def handle_ping(reader, writer):
                         rtt = now - int(msg["timestamp"])
                         
                         delay = rtt / 2
-                        network_delays.append(delay)
+                        network_delays.append((now, delay))
 
                         if network_delay_ema is None:
                             network_delay_ema = delay
@@ -229,37 +229,70 @@ async def main():
     # Keep the main coroutine alive
     await asyncio.Event().wait()
 
+def average_by_time_buckets(data, bucket_ms=5000):
+    if not data:
+        return [], []
+    
+    data.sort()  # Sort by timestamp
+    start_time = data[0][0]
+    buckets = {}
+    
+    for timestamp, value in data:
+        bucket = (timestamp - start_time) // bucket_ms
+        if bucket not in buckets:
+            buckets[bucket] = []
+        buckets[bucket].append(value)
+
+    times = []
+    averages = []
+    for bucket, values in sorted(buckets.items()):
+        avg = sum(values) / len(values)
+        averages.append(avg)
+        times.append(start_time + bucket * bucket_ms)
+
+    return times, averages
+
+
 def plot_kpis():
-    global apply_controls_delays
-    global read_video_frame_delays
-    global network_delays
+    print(f"Avg control delay: {np.mean([v for _, v in apply_controls_delays]):.2f} ms")
+    print(f"Avg video delay: {np.mean([v for _, v in read_video_frame_delays]):.2f} ms")
+    print(f"Avg network delay: {np.mean([v for _, v in network_delays]):.2f} ms")
 
-    print(f"Avg control delay: {np.mean(apply_controls_delays):.2f} ms")
-    print(f"Avg video delay: {np.mean(read_video_frame_delays):.2f} ms")
-    print(f"Avg network delay: {np.mean(network_delays):.2f} ms")
-
-    # Plot delays
     plt.figure(figsize=(12, 6))
 
-    plt.subplot(1, 2, 1)
-    plt.plot(apply_controls_delays, label="Control Delays (ms)")
-    plt.xlabel("Sample #")
+    # Control delays
+    times, avgs = average_by_time_buckets(apply_controls_delays)
+    plt.subplot(1, 3, 1)
+    plt.plot(times, avgs, label="Control Delays (avg/5s)")
+    plt.xlabel("Timestamp (ms)")
     plt.ylabel("Delay (ms)")
-    plt.title("Control Application Delays")
+    plt.title("Control Delay Over Time")
     plt.grid(True)
     plt.legend()
 
-    plt.subplot(1, 2, 2)
-    plt.plot(read_video_frame_delays, label="Video Frame Delays (ms)", color='orange')
-    plt.xlabel("Sample #")
+    # Video delays
+    times, avgs = average_by_time_buckets(read_video_frame_delays)
+    plt.subplot(1, 3, 2)
+    plt.plot(times, avgs, label="Video Delays (avg/5s)", color='orange')
+    plt.xlabel("Timestamp (ms)")
     plt.ylabel("Delay (ms)")
-    plt.title("Video Capture & Send Delays")
+    plt.title("Video Delay Over Time")
+    plt.grid(True)
+    plt.legend()
+
+    # Network delays
+    times, avgs = average_by_time_buckets(network_delays)
+    plt.subplot(1, 3, 3)
+    plt.plot(times, avgs, label="Network Delays (avg/5s)", color='green')
+    plt.xlabel("Timestamp (ms)")
+    plt.ylabel("Delay (ms)")
+    plt.title("Network Delay Over Time")
     plt.grid(True)
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig("robot_delays.png")
-    #plt.show()
+    plt.savefig("robot_delays_over_time.png")
+
 
 if __name__ == "__main__":
     try:
