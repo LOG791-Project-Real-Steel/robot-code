@@ -10,10 +10,8 @@ import cv2
 import numpy as np
 import struct
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 VIDEO_AND_CONTROL_PORT = 9002
@@ -261,6 +259,8 @@ def plot_kpis():
     print(f"Avg video delay: {np.mean([v for _, v in read_video_frame_delays]):.2f} ms")
     print(f"Avg network delay: {np.mean([v for _, v in network_delays]):.2f} ms")
 
+    matplotlib.use('Agg')
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     plt.figure(figsize=(12, 6))
 
     # Control delays
@@ -272,6 +272,7 @@ def plot_kpis():
     plt.title("Control Delay Over Time")
     plt.grid(True)
     plt.legend()
+    plt.xticks(rotation=45)
 
     # Video delays
     times, avgs = average_by_time_buckets(read_video_frame_delays)
@@ -282,6 +283,7 @@ def plot_kpis():
     plt.title("Video Delay Over Time")
     plt.grid(True)
     plt.legend()
+    plt.xticks(rotation=45)
 
     # Network delays
     times, avgs = average_by_time_buckets(network_delays)
@@ -292,7 +294,6 @@ def plot_kpis():
     plt.title("Network Delay Over Time")
     plt.grid(True)
     plt.legend()
-
     plt.xticks(rotation=45)
 
     plt.tight_layout()
