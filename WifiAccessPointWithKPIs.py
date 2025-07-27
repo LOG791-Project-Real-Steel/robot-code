@@ -97,7 +97,7 @@ async def ping_loop(writer):
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
                 writer.write(ping_msg.encode('utf-8'))
                 await writer.drain()
-                await asyncio.sleep(1)  # Ping every second
+                await asyncio.sleep(5)  # Ping every second
             except (ConnectionResetError, BrokenPipeError):
                 print("Ping connection lost.")
                 break
