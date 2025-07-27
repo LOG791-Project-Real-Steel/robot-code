@@ -19,6 +19,7 @@ fps = 30
 
 
 apply_controls_delays = []
+read_video_frame_delays = []
 
 def __gstreamer_pipeline(
         camera_id=0,
@@ -43,6 +44,9 @@ def __gstreamer_pipeline(
     )
 
 async def handle_video(stream, writer):
+    global read_video_frame_delays
+    time_read_start = int(time.time() * 1000)
+
     if not stream.isOpened():
         print("Camera error.")
         return
@@ -57,6 +61,11 @@ async def handle_video(stream, writer):
         await writer.drain()
     else:
         print("Frame read failed.")
+    
+    now = int(time.time() * 1000)
+    read_video_frame_delay = now - time_read_start
+    read_video_frame_delays.append(read_video_frame_delay)
+
 
 def handle_controls(car, data, buffer, time_read_start):
     global apply_controls_delays
@@ -211,5 +220,6 @@ if __name__ == "__main__":
         print(f"Exiting : {e}")
 
         print(f"Average time to apply controls after receiving : {sum(apply_controls_delays)/len(apply_controls_delays)} ms")
+        print(f"Average time to capture and send video frame : {sum(read_video_frame_delays)/len(read_video_frame_delays)} ms")
 
         exit
