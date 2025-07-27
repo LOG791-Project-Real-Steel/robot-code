@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import subprocess
-import datetime
 import asyncio
 import json
 import time
@@ -12,16 +10,20 @@ import numpy as np
 import struct
 from jetracer.nvidia_racecar import NvidiaRacecar
 
-CONTROL_PORT = 9002
-VIDEO_PORT = 9001
+VIDEO_AND_CONTROL_PORT = 9002
+PING_PONG_PORT = 9003
+
+width = 1280
+height = 720
+fps = 30
 
 def __gstreamer_pipeline(
         camera_id=0,
-        capture_width=1280,
-        capture_height=720,
-        display_width=1280,
-        display_height=720,
-        framerate=60,
+        capture_width=width,
+        capture_height=height,
+        display_width=width,
+        display_height=height,
+        framerate=fps,
         flip_method=0,
     ):
     return (
@@ -41,19 +43,14 @@ async def handle_video(stream, writer):
     if not stream.isOpened():
         print("Camera error.")
         return
+    
     ret, frame = stream.read()
     if ret:
         _, jpeg = cv2.imencode('.jpg', frame)
         data = jpeg.tobytes()
 
-        # Get current time in milliseconds
-        timestamp_ms = int(time.time() * 1000)
-        timestamp_bytes = struct.pack('<Q', timestamp_ms)  # 8-byte unsigned long long, big-endian
-
-        payload = timestamp_bytes + data
-        size = struct.pack('>I', len(payload))  # 4-byte size prefix
-
-        writer.write(size + payload)
+        size = struct.pack('>I', len(data))  # 4-byte size prefix
+        writer.write(size + data)
         await writer.drain()
     else:
         print("Frame read failed.")
@@ -66,21 +63,15 @@ def handle_controls(car, data, buffer):
             msg = json.loads(line)
             car.steering = float(msg.get("steering", 0.0))
             car.throttle = float(msg.get("throttle", 0.0))
-
-            # if "timestamp" in msg:
-            #     sent_time = msg["timestamp"] / 1000.0 # convert ms to seconds
-            #     now = time.time()
-            #     latency_ms = int((now - sent_time) * 1000)
-            #     print(f"[Latency] Control latency: {latency_ms} ms")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
 
 
-async def handle(reader, writer, car, stream):
-    print("Client connected")
-    buffer = ""
+async def handle_control_and_video(reader, writer, car, stream):
+    print("Video/Control client connected")
 
+    buffer = ""
     while True:
         try:
             # Read control data and send to robot car
@@ -91,19 +82,14 @@ async def handle(reader, writer, car, stream):
             buffer = handle_controls(car, data, buffer)
 
             # Capture frame from camera and send to client
-            try:
-                await handle_video(stream, writer)
-            except (ConnectionResetError, BrokenPipeError):
-                print("Video client disconnected")
-                break
+            await handle_video(stream, writer)
             
-        except asyncio.IncompleteReadError:
-            print("Control reader closed.")
+        except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
+            print("Video and control connection closed.")
             break
 
 
-async def handle_ping(reader, writer):
-    async def ping_loop():
+async def ping_loop(writer):
         while True:
             try:
                 print("sending ping")
@@ -116,24 +102,21 @@ async def handle_ping(reader, writer):
                 print("Ping connection lost.")
                 break
 
-    asyncio.ensure_future(ping_loop())  # Start pinging in background
+async def handle_ping(reader, writer):
+    ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
     buffer = ""
     while True:
         try:
             data = await reader.read(1024)
-            print("read data")
             if not data:
                 print("Client connection closed.")
                 break
             buffer += data.decode('utf-8')
-            print("buffer")
             while '\n' in buffer:
-                print("in buffer while loop")
                 line, buffer = buffer.split('\n', 1)
                 try:
                     msg = json.loads(line)
-                    print(msg)
                     if msg["type"] == "pong":
                         now = int(time.time() * 1000)
                         rtt = now - int(msg["timestamp"])
@@ -141,31 +124,33 @@ async def handle_ping(reader, writer):
                 except json.JSONDecodeError:
                     print("Invalid JSON:", line)            
         except asyncio.IncompleteReadError:
-            print("Control reader closed.")
+            print("Ping connection closed.")
             break
 
-async def server(car, stream):
-    server = await asyncio.start_server(
-        lambda r, w: handle(r, w, car, stream),
-        host='0.0.0.0',
-        port=CONTROL_PORT
-    )
-    print(f"Control server listening on port {CONTROL_PORT}")
+    return ping
 
-    await asyncio.start_server(
+async def server(car, stream):
+    control_and_video_server = await asyncio.start_server(
+        lambda r, w: handle_control_and_video(r, w, car, stream),
+        host='0.0.0.0',
+        port=VIDEO_AND_CONTROL_PORT
+    )
+    print(f"Control and video server listening on port {VIDEO_AND_CONTROL_PORT}")
+
+    ping_pong_server = await asyncio.start_server(
         lambda r, w: handle_ping(r, w),
         host='0.0.0.0',
-        port=9003
+        port=PING_PONG_PORT
     )
+    print(f"Ping pong server listening on port {PING_PONG_PORT}")
 
     # Just return the server, don't try to serve forever
-    return server
+    return control_and_video_server, ping_pong_server
 
-async def main():
-    
-    width = 1280
-    height = 720
-    fps = 30
+def read_args():
+    global width
+    global height
+    global fps
 
     n = len(sys.argv)
     print("\nArguments passed:", end = " ")
@@ -175,30 +160,23 @@ async def main():
             print(arg, end = " ")
             if arg.startswith("res"):
                 res = arg[3:].split('=')[1].split('x')
-                width = res[0]
-                height = res[1]
+                width = int(res[0])
+                height = int(res[1])
             if arg.startswith("fps"):
-                fps = arg[3:].split('=')[1]
-            
-            width = int(width)
-            height = int(height)
-            fps = int(fps)
+                fps = int(arg[3:].split('=')[1])
     except Exception as e:
         print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
         exit
+
+async def main():
+    read_args()
 
     car = NvidiaRacecar()
     car.steering = 0.0
     car.throttle = 0.0
 
     stream = cv2.VideoCapture(
-        __gstreamer_pipeline(
-            capture_width=width,
-            capture_height=height,
-            display_width=width,
-            display_height=height,
-            framerate=fps
-        ), 
+        __gstreamer_pipeline(), 
         cv2.CAP_GSTREAMER
     )
     if not stream.isOpened():
@@ -207,7 +185,7 @@ async def main():
 
     print("Robot is ready.")
     
-    # Start both servers
+    # Start all servers : Sending video, receiving controls and ping pong game
     await server(car, stream)
 
     # Keep the main coroutine alive
