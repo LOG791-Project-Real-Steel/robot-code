@@ -8,6 +8,7 @@ import time
 import cv2
 import numpy as np
 import struct
+import matplotlib.pyplot as plt
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 VIDEO_AND_CONTROL_PORT = 9002
@@ -20,6 +21,10 @@ fps = 30
 
 apply_controls_delays = []
 read_video_frame_delays = []
+network_delays = []
+
+network_delay_ema = None
+ema_alpha = 0.1
 
 def __gstreamer_pipeline(
         camera_id=0,
@@ -123,8 +128,9 @@ async def ping_loop(writer):
 async def handle_ping(reader, writer):
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
-    ping_count = 0
-    network_delay_total = 0
+    global network_delays
+    global ema_alpha
+
     buffer = ""
     while True:
         try:
@@ -139,10 +145,17 @@ async def handle_ping(reader, writer):
                     if msg["type"] == "pong":
                         now = int(time.time() * 1000)
                         rtt = now - int(msg["timestamp"])
-                        ping_count += 1
-                        network_delay_total += rtt/2
+                        
+                        delay = rtt / 2
+                        network_delays.append(delay)
+
+                        if network_delay_ema is None:
+                            network_delay_ema = delay
+                        else:
+                            network_delay_ema = ema_alpha * delay + (1 - ema_alpha) * network_delay_ema
+
                         print(f"[Ping] RTT to Oculus: {rtt} ms")
-                        print(f"[Ping] Network delay avg: {network_delay_total/ping_count} ms")
+                        print(f"[Ping] Network Exponential Moving Average: {network_delay_ema} ms")
                 except json.JSONDecodeError:
                     print("Invalid JSON:", line)            
         except asyncio.IncompleteReadError:
@@ -198,7 +211,7 @@ async def main():
     car.throttle = 0.0
 
     stream = cv2.VideoCapture(
-        __gstreamer_pipeline(), 
+        __gstreamer_pipeline(),
         cv2.CAP_GSTREAMER
     )
     if not stream.isOpened():
@@ -213,13 +226,43 @@ async def main():
     # Keep the main coroutine alive
     await asyncio.Event().wait()
 
+def plot_kpis():
+    global apply_controls_delays
+    global read_video_frame_delays
+    global network_delays
+
+    print(f"Avg control delay: {np.mean(apply_controls_delays):.2f} ms")
+    print(f"Avg video delay: {np.mean(read_video_frame_delays):.2f} ms")
+    print(f"Avg network delay: {np.mean(network_delays):.2f} ms")
+
+    # Plot delays
+    plt.figure(figsize=(12, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(apply_controls_delays, label="Control Delays (ms)")
+    plt.xlabel("Sample #")
+    plt.ylabel("Delay (ms)")
+    plt.title("Control Application Delays")
+    plt.grid(True)
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(read_video_frame_delays, label="Video Frame Delays (ms)", color='orange')
+    plt.xlabel("Sample #")
+    plt.ylabel("Delay (ms)")
+    plt.title("Video Capture & Send Delays")
+    plt.grid(True)
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig("robot_delays.png")
+    plt.show()
+
 if __name__ == "__main__":
     try:
         asyncio.get_event_loop().run_until_complete(main())
     except KeyboardInterrupt as e:
+        plot_kpis()
+
         print(f"Exiting : {e}")
-
-        print(f"Average time to apply controls after receiving : {sum(apply_controls_delays)/len(apply_controls_delays)} ms")
-        print(f"Average time to capture and send video frame : {sum(read_video_frame_delays)/len(read_video_frame_delays)} ms")
-
         exit
