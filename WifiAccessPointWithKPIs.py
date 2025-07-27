@@ -257,7 +257,7 @@ def plot_kpis():
 
     plt.tight_layout()
     plt.savefig("robot_delays.png")
-    plt.show()
+    #plt.show()
 
 if __name__ == "__main__":
     try:
