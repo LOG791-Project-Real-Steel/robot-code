@@ -8,6 +8,8 @@ import time
 import cv2
 import numpy as np
 import struct
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from jetracer.nvidia_racecar import NvidiaRacecar
 
