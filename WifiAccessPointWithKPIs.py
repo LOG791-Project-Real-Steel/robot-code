@@ -252,7 +252,7 @@ def average_by_time_buckets(data, bucket_ms=5000):
         avg = sum(values) / len(values)
         averages.append(avg)
         timestamp_ms = start_time + bucket * bucket_ms
-        times.append(datetime.fromtimestamp(timestamp_ms / 1000))
+        times.append(datetime.datetime.fromtimestamp(timestamp_ms / 1000))
 
     return times, averages
 
