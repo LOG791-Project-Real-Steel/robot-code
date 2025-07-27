@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import struct
 import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from jetracer.nvidia_racecar import NvidiaRacecar
@@ -259,7 +260,6 @@ def plot_kpis():
     print(f"Avg video delay: {np.mean([v for _, v in read_video_frame_delays]):.2f} ms")
     print(f"Avg network delay: {np.mean([v for _, v in network_delays]):.2f} ms")
 
-    matplotlib.use('Agg')
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     plt.figure(figsize=(12, 6))
 
