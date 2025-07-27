@@ -129,6 +129,7 @@ async def handle_ping(reader, writer):
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
     global network_delays
+    global network_delay_ema
     global ema_alpha
 
     buffer = ""
