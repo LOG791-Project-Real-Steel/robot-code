@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import datetime
 import sys
 import asyncio
 import json
@@ -11,6 +12,8 @@ import struct
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 VIDEO_AND_CONTROL_PORT = 9002
@@ -248,10 +251,10 @@ def average_by_time_buckets(data, bucket_ms=5000):
     for bucket, values in sorted(buckets.items()):
         avg = sum(values) / len(values)
         averages.append(avg)
-        times.append(start_time + bucket * bucket_ms)
+        timestamp_ms = start_time + bucket * bucket_ms
+        times.append(datetime.fromtimestamp(timestamp_ms / 1000))
 
     return times, averages
-
 
 def plot_kpis():
     print(f"Avg control delay: {np.mean([v for _, v in apply_controls_delays]):.2f} ms")
@@ -289,6 +292,8 @@ def plot_kpis():
     plt.title("Network Delay Over Time")
     plt.grid(True)
     plt.legend()
+
+    plt.xticks(rotation=45)
 
     plt.tight_layout()
     plt.savefig("robot_delays_over_time.png")
