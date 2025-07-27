@@ -55,7 +55,7 @@ async def handle_video(stream, writer):
     else:
         print("Frame read failed.")
 
-def handle_controls(car, data, buffer):
+def handle_controls(car, data, buffer, time_read_start):
     buffer += data.decode('utf-8')
     while '\n' in buffer:
         line, buffer = buffer.split('\n', 1)
@@ -63,6 +63,10 @@ def handle_controls(car, data, buffer):
             msg = json.loads(line)
             car.steering = float(msg.get("steering", 0.0))
             car.throttle = float(msg.get("throttle", 0.0))
+
+            now = int(time.time() * 1000)
+            apply_controls_delay = now - time_read_start
+            print(f"Time to apply controls : {apply_controls_delay}")
         except json.JSONDecodeError:
             print("Invalid JSON:", line)
     return buffer
@@ -75,11 +79,12 @@ async def handle_control_and_video(reader, writer, car, stream):
     while True:
         try:
             # Read control data and send to robot car
+            time_read_start = int(time.time() * 1000)
             data = await reader.read(1024)
             if not data:
                 print("Client connection closed.")
                 break
-            buffer = handle_controls(car, data, buffer)
+            buffer = handle_controls(car, data, buffer, time_read_start)
 
             # Capture frame from camera and send to client
             await handle_video(stream, writer)
