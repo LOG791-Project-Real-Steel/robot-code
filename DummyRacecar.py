@@ -10,7 +10,6 @@ class DummyRacecar:
     @steering.setter
     def steering(self, value):
         self._steering = value
-        print(f"[Dummy] Steering set to {value}")
 
     @property
     def throttle(self):
@@ -19,4 +18,3 @@ class DummyRacecar:
     @throttle.setter
     def throttle(self, value):
         self._throttle = value
-        print(f"[Dummy] Throttle set to {value}")
