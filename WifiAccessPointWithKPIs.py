@@ -6,6 +6,7 @@ import sys
 import asyncio
 import json
 import time
+from DummyRacecar import DummyRacecar
 import cv2
 import numpy as np
 import struct
@@ -211,7 +212,13 @@ def read_args():
 async def main():
     read_args()
 
-    car = NvidiaRacecar()
+    try:
+        car = NvidiaRacecar()
+    except Exception as e:
+        print(f"Warning: Failed to initialize NvidiaRacecar due to I2C error: {e}")
+        print("Using DummyRacecar instead.")
+        car = DummyRacecar()
+
     car.steering = 0.0
     car.throttle = 0.0
 
