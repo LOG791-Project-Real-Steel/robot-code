@@ -21,12 +21,16 @@ PING_PONG_PORT = 9003
 
 width = 1280
 height = 720
-fps = 30
+fps = 60
 
 
 apply_controls_delays = []
 read_video_frame_delays = []
 network_delays = []
+fps_sent_over_time = []
+
+fps_count = 0
+
 
 network_delay_ema = None
 ema_alpha = 0.1
@@ -55,6 +59,8 @@ def __gstreamer_pipeline(
 
 async def handle_video(stream, writer):
     global read_video_frame_delays
+    global fps_count
+
     time_read_start = int(time.time() * 1000)
 
     if not stream.isOpened():
@@ -69,6 +75,7 @@ async def handle_video(stream, writer):
         size = struct.pack('>I', len(data))  # 4-byte size prefix
         writer.write(size + data)
         await writer.drain()
+        fps_count += 1
     else:
         print("Frame read failed.")
     
@@ -125,12 +132,24 @@ async def ping_loop(writer):
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
                 writer.write(ping_msg.encode('utf-8'))
                 await writer.drain()
-                await asyncio.sleep(5)  # Ping every second
+                await asyncio.sleep(5)
             except (ConnectionResetError, BrokenPipeError):
                 print("Ping connection lost.")
                 break
+        
+async def collect_fps():
+    global fps_sent_over_time
+    global fps_count
+
+    while True:
+        await asyncio.sleep(1)
+        fps_sent_over_time.append((int(time.time() * 1000), fps_count))
+        fps_count = 0
+
+
 
 async def handle_ping(reader, writer):
+    fps_collect = asyncio.ensure_future(collect_fps) # Start collecting fps count in the background
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
     global network_delays
@@ -168,7 +187,7 @@ async def handle_ping(reader, writer):
             print("Ping connection closed.")
             break
 
-    return ping
+    return ping, fps_collect
 
 async def server(car, stream):
     control_and_video_server = await asyncio.start_server(
@@ -231,7 +250,7 @@ async def main():
         return
 
     print("Robot is ready.")
-    
+
     # Start all servers : Sending video, receiving controls and ping pong game
     await server(car, stream)
 
@@ -299,6 +318,17 @@ def plot_kpis():
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("Delay (ms)")
     plt.title("Network Delay Over Time")
+    plt.grid(True)
+    plt.legend()
+    plt.xticks(rotation=45)
+
+    # FPS
+    times, avgs = average_by_time_buckets(fps_sent_over_time)
+    plt.subplot(1, 3, 4)
+    plt.plot(times, avgs, label="FPS (avg/5s)", color='red')
+    plt.xlabel("Timestamp (ms)")
+    plt.ylabel("FPS")
+    plt.title("FPS sent Over Time")
     plt.grid(True)
     plt.legend()
     plt.xticks(rotation=45)
