@@ -109,15 +109,15 @@ async def handle_control_and_video(reader, writer, car, stream):
     buffer = ""
     while True:
         try:
+            # Capture frame from camera and send to client
+            await handle_video(stream, writer)
+
             # Read control data and send to robot car
             time_read_start = int(time.time() * 1000)
             data = await reader.read(1024)
             if not data:
                 break
             buffer = handle_controls(car, data, buffer, time_read_start)
-
-            # Capture frame from camera and send to client
-            await handle_video(stream, writer)
             
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             print("Video and control connection closed.")
