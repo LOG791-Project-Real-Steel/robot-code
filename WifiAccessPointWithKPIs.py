@@ -149,7 +149,7 @@ async def collect_fps():
 
 
 async def handle_ping(reader, writer):
-    fps_collect = asyncio.ensure_future(collect_fps) # Start collecting fps count in the background
+    fps_collect = asyncio.ensure_future(collect_fps()) # Start collecting fps count in the background
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
     global network_delays
