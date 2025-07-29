@@ -60,6 +60,7 @@ def __gstreamer_pipeline(
 async def handle_video(stream, writer):
     global read_video_frame_delays
     global fps_count
+    global fps
 
     while True:
         time_read_start = int(time.time() * 1000)
