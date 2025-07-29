@@ -85,7 +85,7 @@ async def handle_video(stream, writer):
         read_video_frame_delay = now - time_read_start
         read_video_frame_delays.append((now, read_video_frame_delay))
 
-        await asyncio.sleep(1 / fps)
+        await asyncio.sleep(1 / (fps + read_video_frame_delays.pop()))
 
 
 async def handle_controls(reader, car):
