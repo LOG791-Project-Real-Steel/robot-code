@@ -61,67 +61,66 @@ async def handle_video(stream, writer):
     global read_video_frame_delays
     global fps_count
 
-    time_read_start = int(time.time() * 1000)
+    while True:
+        time_read_start = int(time.time() * 1000)
 
-    if not stream.isOpened():
-        print("Camera error.")
-        return
-    
-    ret, frame = stream.read()
-    if ret:
-        _, jpeg = cv2.imencode('.jpg', frame)
-        data = jpeg.tobytes()
+        if not stream.isOpened():
+            print("Camera error.")
+            return
+        
+        ret, frame = stream.read()
+        if ret:
+            _, jpeg = cv2.imencode('.jpg', frame)
+            data = jpeg.tobytes()
 
-        size = struct.pack('>I', len(data))  # 4-byte size prefix
-        writer.write(size + data)
-        await writer.drain()
-        fps_count += 1
-    else:
-        print("Frame read failed.")
-    
-    now = int(time.time() * 1000)
-    read_video_frame_delay = now - time_read_start
-    read_video_frame_delays.append((now, read_video_frame_delay))
+            size = struct.pack('>I', len(data))  # 4-byte size prefix
+            writer.write(size + data)
+            await writer.drain()
+            fps_count += 1
+        else:
+            print("Frame read failed.")
+        
+        now = int(time.time() * 1000)
+        read_video_frame_delay = now - time_read_start
+        read_video_frame_delays.append((now, read_video_frame_delay))
 
 
-def handle_controls(car, data, buffer, time_read_start):
+async def handle_controls(reader, car):
     global apply_controls_delays
 
-    buffer += data.decode('utf-8')
-    while '\n' in buffer:
-        line, buffer = buffer.split('\n', 1)
-        try:
-            msg = json.loads(line)
-            car.steering = float(msg.get("steering", 0.0))
-            car.throttle = float(msg.get("throttle", 0.0))
+    buffer = ""
+    while True:
+        # Read control data and send to robot car
+        time_read_start = int(time.time() * 1000)
+        data = await reader.read(1024)
+        if not data:
+            break
 
-            now = int(time.time() * 1000)
-            apply_controls_delay = now - time_read_start
-            apply_controls_delays.append((now, apply_controls_delay))
-        except json.JSONDecodeError:
-            print("Invalid JSON:", line)
-    return buffer
+        buffer += data.decode('utf-8')
+        while '\n' in buffer:
+            line, buffer = buffer.split('\n', 1)
+            try:
+                msg = json.loads(line)
+                car.steering = float(msg.get("steering", 0.0))
+                car.throttle = float(msg.get("throttle", 0.0))
+
+                now = int(time.time() * 1000)
+                apply_controls_delay = now - time_read_start
+                apply_controls_delays.append((now, apply_controls_delay))
+            except json.JSONDecodeError:
+                print("Invalid JSON:", line)
 
 
 async def handle_control_and_video(reader, writer, car, stream):
     print("Video/Control client connected")
 
-    buffer = ""
-    while True:
-        try:
-            # Capture frame from camera and send to client
-            await handle_video(stream, writer)
-
-            # Read control data and send to robot car
-            time_read_start = int(time.time() * 1000)
-            data = await reader.read(1024)
-            if not data:
-                break
-            buffer = handle_controls(car, data, buffer, time_read_start)
-            
-        except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
-            print("Video and control connection closed.")
-            break
+    try:
+        await asyncio.gather(
+            handle_controls(reader, car),
+            handle_video(stream, writer)
+        )
+    except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
+        print("Video and control connection closed.")
 
 
 async def ping_loop(writer):
