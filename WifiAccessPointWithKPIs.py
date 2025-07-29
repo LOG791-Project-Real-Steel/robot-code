@@ -28,8 +28,10 @@ apply_controls_delays = []
 read_video_frame_delays = []
 network_delays = []
 fps_sent_over_time = []
+bytes_sent_over_time = []
 
 fps_count = 0
+bps_count = 0
 
 
 network_delay_ema = None
@@ -61,6 +63,7 @@ async def handle_video(stream, writer):
     global read_video_frame_delays
     global fps_count
     global fps
+    global bps_count
 
     while True:
         time_read_start = int(time.time() * 1000)
@@ -78,6 +81,7 @@ async def handle_video(stream, writer):
             writer.write(size + data)
             await writer.drain()
             fps_count += 1
+            bps_count += len(size) + len(data)
         else:
             print("Frame read failed.")
         
@@ -148,10 +152,20 @@ async def collect_fps():
         fps_sent_over_time.append((int(time.time() * 1000), fps_count))
         fps_count = 0
 
+async def collect_bps():
+    global bytes_sent_over_time
+    global bps_count
+
+    while True:
+        await asyncio.sleep(1)
+        bytes_sent_over_time.append((int(time.time() * 1000), bps_count))
+        bps_count = 0
+
 
 
 async def handle_ping(reader, writer):
     fps_collect = asyncio.ensure_future(collect_fps()) # Start collecting fps count in the background
+    bps_collect = asyncio.ensure_future(collect_bps()) # Start collecting bytes per second count in the background
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
     global network_delays
@@ -189,7 +203,7 @@ async def handle_ping(reader, writer):
             print("Ping connection closed.")
             break
 
-    return ping, fps_collect
+    return ping, fps_collect, bps_collect
 
 async def server(car, stream):
     control_and_video_server = await asyncio.start_server(
@@ -331,6 +345,17 @@ def plot_kpis():
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("FPS")
     plt.title("FPS sent Over Time")
+    plt.grid(True)
+    plt.legend()
+    plt.xticks(rotation=45)
+
+    # Bytes per second
+    times, avgs = average_by_time_buckets(bytes_sent_over_time)
+    plt.subplot(4, 1, 5)
+    plt.plot(times, avgs, label="Bytes sent (avg/5s)", color='yellow')
+    plt.xlabel("Timestamp (ms)")
+    plt.ylabel("Bytes sent per second")
+    plt.title("Bytes per second sent Over Time")
     plt.grid(True)
     plt.legend()
     plt.xticks(rotation=45)
