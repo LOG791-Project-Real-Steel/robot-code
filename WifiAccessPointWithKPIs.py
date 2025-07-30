@@ -307,7 +307,7 @@ def plot_kpis():
 
     # Control delays
     times, avgs = average_by_time_buckets(apply_controls_delays)
-    plt.subplot(4, 1, 1)
+    plt.subplot(5, 1, 1)
     plt.plot(times, avgs, label="Control Delays (avg/5s)")
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("Delay (ms)")
@@ -318,7 +318,7 @@ def plot_kpis():
 
     # Video delays
     times, avgs = average_by_time_buckets(read_video_frame_delays)
-    plt.subplot(4, 1, 2)
+    plt.subplot(5, 1, 2)
     plt.plot(times, avgs, label="Video Delays (avg/5s)", color='orange')
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("Delay (ms)")
@@ -329,7 +329,7 @@ def plot_kpis():
 
     # Network delays
     times, avgs = average_by_time_buckets(network_delays)
-    plt.subplot(4, 1, 3)
+    plt.subplot(5, 1, 3)
     plt.plot(times, avgs, label="Network Delays (avg/5s)", color='green')
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("Delay (ms)")
@@ -340,7 +340,7 @@ def plot_kpis():
 
     # FPS
     times, avgs = average_by_time_buckets(fps_sent_over_time)
-    plt.subplot(4, 1, 4)
+    plt.subplot(5, 1, 4)
     plt.plot(times, avgs, label="FPS (avg/5s)", color='red')
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("FPS")
@@ -351,7 +351,7 @@ def plot_kpis():
 
     # Bytes per second
     times, avgs = average_by_time_buckets(bytes_sent_over_time)
-    plt.subplot(4, 1, 5)
+    plt.subplot(5, 1, 5)
     plt.plot(times, avgs, label="Bytes sent (avg/5s)", color='yellow')
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("Bytes sent per second")
