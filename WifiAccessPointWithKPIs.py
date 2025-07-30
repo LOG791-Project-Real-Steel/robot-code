@@ -382,7 +382,7 @@ def plot_kpis():
     plt.xticks(rotation=45)
 
     # Network Signal quality (RSSI) over time
-    times, avgs = average_by_time_buckets(MB_sent_over_time)
+    times, avgs = average_by_time_buckets(wifi_signal_strength_over_time)
     plt.subplot(6, 1, 6)
     plt.plot(times, avgs, label="RSSI (avg/5s)", color='orange')
     plt.xlabel("Timestamp (ms)")
