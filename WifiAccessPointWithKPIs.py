@@ -14,6 +14,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import subprocess
+import re
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 VIDEO_AND_CONTROL_PORT = 9002
@@ -29,6 +31,7 @@ read_video_frame_delays = []
 network_delays = []
 fps_sent_over_time = []
 MB_sent_over_time = []
+wifi_signal_strength_over_time = [] # RSSI
 
 fps_count = 0
 bps_count = 0
@@ -142,6 +145,15 @@ async def ping_loop(writer):
             except (ConnectionResetError, BrokenPipeError):
                 print("Ping connection lost.")
                 break
+
+def get_wifi_signal_strength(interface="wlan0"):
+    try:
+        output = subprocess.check_output(["iwconfig", interface], stderr=subprocess.DEVNULL).decode()
+        match = re.search(r"Signal level=(-?\d+) dBm", output)
+        if match:
+            return int(match.group(1))
+    except Exception:
+        return None
         
 async def collect_fps():
     global fps_sent_over_time
@@ -160,6 +172,15 @@ async def collect_bps():
         await asyncio.sleep(1)
         MB_sent_over_time.append((int(time.time() * 1000), bps_count))
         bps_count = 0
+
+async def collect_network_signal():
+    while True:
+        await asyncio.sleep(5)
+        signal_dbm = get_wifi_signal_strength()
+        if signal_dbm is not None:
+            now = int(time.time() * 1000)
+            wifi_signal_strength_over_time.append((now, signal_dbm))
+            print(f"[Wi-Fi Signal] {signal_dbm} dBm")
 
 
 
@@ -352,10 +373,21 @@ def plot_kpis():
     # MegaBytes per second
     times, avgs = average_by_time_buckets(MB_sent_over_time)
     plt.subplot(5, 1, 5)
-    plt.plot(times, avgs, label="MB sent (avg/5s)", color='yellow')
+    plt.plot(times, avgs, label="MB sent (avg/5s)", color='blue')
     plt.xlabel("Timestamp (ms)")
     plt.ylabel("MB sent per second")
     plt.title("MB per second sent Over Time")
+    plt.grid(True)
+    plt.legend()
+    plt.xticks(rotation=45)
+
+    # Network Signal quality (RSSI) over time
+    times, avgs = average_by_time_buckets(MB_sent_over_time)
+    plt.subplot(5, 1, 5)
+    plt.plot(times, avgs, label="RSSI (avg/5s)", color='orange')
+    plt.xlabel("Timestamp (ms)")
+    plt.ylabel("RSSI")
+    plt.title("Network Signal quality (RSSI) over time")
     plt.grid(True)
     plt.legend()
     plt.xticks(rotation=45)
