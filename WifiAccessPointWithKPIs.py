@@ -149,6 +149,7 @@ async def ping_loop(writer):
 def get_wifi_signal_strength(interface="wlan0"):
     try:
         output = subprocess.check_output(["iwconfig", interface], stderr=subprocess.DEVNULL).decode()
+        print(f"{str(output)}")
         match = re.search(r"Signal level=(-?\d+) dBm", output)
         if match:
             return int(match.group(1))
