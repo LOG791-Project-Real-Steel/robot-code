@@ -28,7 +28,7 @@ apply_controls_delays = []
 read_video_frame_delays = []
 network_delays = []
 fps_sent_over_time = []
-bytes_sent_over_time = []
+MB_sent_over_time = []
 
 fps_count = 0
 bps_count = 0
@@ -81,7 +81,7 @@ async def handle_video(stream, writer):
             writer.write(size + data)
             await writer.drain()
             fps_count += 1
-            bps_count += len(size) + len(data)
+            bps_count += (len(size) + len(data)) / 1000000
         else:
             print("Frame read failed.")
         
@@ -153,19 +153,19 @@ async def collect_fps():
         fps_count = 0
 
 async def collect_bps():
-    global bytes_sent_over_time
+    global MB_sent_over_time
     global bps_count
 
     while True:
         await asyncio.sleep(1)
-        bytes_sent_over_time.append((int(time.time() * 1000), bps_count))
+        MB_sent_over_time.append((int(time.time() * 1000), bps_count))
         bps_count = 0
 
 
 
 async def handle_ping(reader, writer):
     fps_collect = asyncio.ensure_future(collect_fps()) # Start collecting fps count in the background
-    bps_collect = asyncio.ensure_future(collect_bps()) # Start collecting bytes per second count in the background
+    bps_collect = asyncio.ensure_future(collect_bps()) # Start collecting megabytes per second count in the background
     ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
 
     global network_delays
@@ -349,13 +349,13 @@ def plot_kpis():
     plt.legend()
     plt.xticks(rotation=45)
 
-    # Bytes per second
-    times, avgs = average_by_time_buckets(bytes_sent_over_time)
+    # MegaBytes per second
+    times, avgs = average_by_time_buckets(MB_sent_over_time)
     plt.subplot(5, 1, 5)
-    plt.plot(times, avgs, label="Bytes sent (avg/5s)", color='yellow')
+    plt.plot(times, avgs, label="MB sent (avg/5s)", color='yellow')
     plt.xlabel("Timestamp (ms)")
-    plt.ylabel("Bytes sent per second")
-    plt.title("Bytes per second sent Over Time")
+    plt.ylabel("MB sent per second")
+    plt.title("MB per second sent Over Time")
     plt.grid(True)
     plt.legend()
     plt.xticks(rotation=45)
