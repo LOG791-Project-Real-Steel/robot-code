@@ -37,10 +37,6 @@ wifi_signal_strength_over_time = [] # RSSI
 fps_count = 0
 bps_count = 0
 
-
-network_delay_ema = None
-ema_alpha = 0.1
-
 def __gstreamer_pipeline(
         camera_id=0,
         capture_width=width,
@@ -134,7 +130,7 @@ async def handle_control_and_video(reader, writer, car, stream):
         print("Video and control connection closed.")
 
 
-async def ping_loop(writer):
+async def send_ping(writer):
         while True:
             try:
                 timestamp = int(time.time() * 1000)
@@ -181,15 +177,8 @@ async def collect_network_signal():
             now = int(time.time() * 1000)
             wifi_signal_strength_over_time.append((now, signal_dbm))
 
-async def handle_ping(reader, writer):
-    fps_collect = asyncio.ensure_future(collect_fps()) # Start collecting fps count in the background
-    bps_collect = asyncio.ensure_future(collect_bps()) # Start collecting megabytes per second count in the background
-    asyncio.ensure_future(collect_network_signal()) 
-    ping = asyncio.ensure_future(ping_loop(writer))  # Start pinging in background
-
+async def read_pong(reader):
     global network_delays
-    global network_delay_ema
-    global ema_alpha
 
     buffer = ""
     while True:
@@ -219,9 +208,20 @@ async def handle_ping(reader, writer):
             print("Ping connection closed.")
             break
 
-    return ping, fps_collect, bps_collect
+async def handle_stats(reader, writer):
+    print('Ping Pong client econnected')
+    try:
+        await asyncio.gather(
+            collect_fps(),
+            collect_bps(),
+            collect_network_signal(),
+            send_ping(writer),
+            read_pong(reader)
+        )
+    except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
+        print("Ping pong connection closed.")
 
-async def server(car, stream):
+async def servers(car, stream):
     control_and_video_server = await asyncio.start_server(
         lambda r, w: handle_control_and_video(r, w, car, stream),
         host='0.0.0.0',
@@ -230,13 +230,12 @@ async def server(car, stream):
     print(f"Control and video server listening on port {VIDEO_AND_CONTROL_PORT}")
 
     ping_pong_server = await asyncio.start_server(
-        lambda r, w: handle_ping(r, w),
+        lambda r, w: handle_stats(r, w),
         host='0.0.0.0',
         port=PING_PONG_PORT
     )
     print(f"Ping pong server listening on port {PING_PONG_PORT}")
 
-    # Just return the server, don't try to serve forever
     return control_and_video_server, ping_pong_server
 
 def read_args():
@@ -284,7 +283,7 @@ async def main():
     print("Robot is ready.")
 
     # Start all servers : Sending video, receiving controls and ping pong game
-    await server(car, stream)
+    await servers(car, stream)
 
     # Keep the main coroutine alive
     await asyncio.Event().wait()
