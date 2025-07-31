@@ -121,7 +121,7 @@ async def servers(car, stream):
     print(f"Control and video server listening on port {VIDEO_AND_CONTROL_PORT}")
 
     if kpi:
-        stats.start_kpi_server()
+        await stats.start_kpi_server()
 
     return control_and_video_server
 
@@ -184,7 +184,8 @@ if __name__ == "__main__":
     try:
         asyncio.get_event_loop().run_until_complete(main())
     except KeyboardInterrupt as e:
-        stats.plot_kpis()
+        if kpi:
+            stats.plot_kpis()
 
         print(f"Exiting : {e}")
         exit()
