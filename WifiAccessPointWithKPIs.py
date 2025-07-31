@@ -197,11 +197,6 @@ async def read_pong(reader):
                         
                         delay = rtt / 2
                         network_delays.append((now, delay))
-
-                        if network_delay_ema is None:
-                            network_delay_ema = delay
-                        else:
-                            network_delay_ema = ema_alpha * delay + (1 - ema_alpha) * network_delay_ema
                 except json.JSONDecodeError:
                     print("Invalid JSON:", line)            
         except asyncio.IncompleteReadError:
