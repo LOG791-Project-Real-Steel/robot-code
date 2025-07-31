@@ -1,20 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import datetime
 import sys
 import asyncio
 import json
 import time
 from DummyRacecar import DummyRacecar
-from KpiPlotter import plot_kpis
+from KpiPlotter import KpiPlotter, plot_kpis
 import cv2
-import numpy as np
 import struct
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import subprocess
 import re
 from jetracer.nvidia_racecar import NvidiaRacecar
@@ -26,16 +22,7 @@ width = 1280
 height = 720
 fps = 60
 
-
-apply_controls_delays = []
-read_video_frame_delays = []
-network_delays = []
-fps_sent_over_time = []
-MB_sent_over_time = []
-wifi_signal_strength_over_time = [] # RSSI
-
-fps_count = 0
-bps_count = 0
+stats = KpiPlotter()
 
 def __gstreamer_pipeline(
         camera_id=0,
@@ -60,10 +47,8 @@ def __gstreamer_pipeline(
     )
 
 async def handle_video(stream, writer):
-    global read_video_frame_delays
-    global fps_count
+    global stats
     global fps
-    global bps_count
 
     while True:
         time_read_start = int(time.time() * 1000)
@@ -80,20 +65,19 @@ async def handle_video(stream, writer):
             size = struct.pack('>I', len(data))  # 4-byte size prefix
             writer.write(size + data)
             await writer.drain()
-            fps_count += 1
-            bps_count += (len(size) + len(data)) / 1000000
+            
+            stats.fps_count += 1
+            stats.bps_count += (len(size) + len(data)) / 1000000
         else:
             print("Frame read failed.")
-        
-        now = int(time.time() * 1000)
-        read_video_frame_delay = now - time_read_start
-        read_video_frame_delays.append((now, read_video_frame_delay))
+
+        stats.calculate_local_video_delay(time_read_start)
 
         await asyncio.sleep(1 / (fps * 2))
 
 
 async def handle_controls(reader, car):
-    global apply_controls_delays
+    global stats
 
     buffer = ""
     while True:
@@ -111,9 +95,7 @@ async def handle_controls(reader, car):
                 car.steering = float(msg.get("steering", 0.0))
                 car.throttle = float(msg.get("throttle", 0.0))
 
-                now = int(time.time() * 1000)
-                apply_controls_delay = now - time_read_start
-                apply_controls_delays.append((now, apply_controls_delay))
+                stats.calculate_local_control_delay(time_read_start)
             except json.JSONDecodeError:
                 print("Invalid JSON:", line)
 
@@ -142,43 +124,8 @@ async def send_ping(writer):
                 print("Ping connection lost.")
                 break
 
-def get_wifi_signal_strength(interface="wlan0"):
-    try:
-        output = subprocess.check_output(["iwconfig", interface], stderr=subprocess.DEVNULL).decode()
-        match = re.search(r"Signal level=(-?\d+) dBm", output)
-        if match:
-            return int(match.group(1))
-    except Exception:
-        return None
-        
-async def collect_fps():
-    global fps_sent_over_time
-    global fps_count
-
-    while True:
-        await asyncio.sleep(1)
-        fps_sent_over_time.append((int(time.time() * 1000), fps_count))
-        fps_count = 0
-
-async def collect_bps():
-    global MB_sent_over_time
-    global bps_count
-
-    while True:
-        await asyncio.sleep(1)
-        MB_sent_over_time.append((int(time.time() * 1000), bps_count))
-        bps_count = 0
-
-async def collect_network_signal():
-    while True:
-        await asyncio.sleep(5)
-        signal_dbm = get_wifi_signal_strength()
-        if signal_dbm is not None:
-            now = int(time.time() * 1000)
-            wifi_signal_strength_over_time.append((now, signal_dbm))
-
 async def read_pong(reader):
-    global network_delays
+    global stats
 
     buffer = ""
     while True:
@@ -192,11 +139,7 @@ async def read_pong(reader):
                 try:
                     msg = json.loads(line)
                     if msg["type"] == "pong":
-                        now = int(time.time() * 1000)
-                        rtt = now - int(msg["timestamp"])
-                        
-                        delay = rtt / 2
-                        network_delays.append((now, delay))
+                        stats.calculate_network_delay(msg["timestamp"])
                 except json.JSONDecodeError:
                     print("Invalid JSON:", line)            
         except asyncio.IncompleteReadError:
@@ -205,11 +148,14 @@ async def read_pong(reader):
 
 async def handle_stats(reader, writer):
     print('Ping Pong client econnected')
+
+    global stats
+
     try:
         await asyncio.gather(
-            collect_fps(),
-            collect_bps(),
-            collect_network_signal(),
+            stats.collect_fps(),
+            stats.collect_bps(),
+            stats.collect_network_signal(),
             send_ping(writer),
             read_pong(reader)
         )
@@ -285,17 +231,11 @@ async def main():
 
 
 if __name__ == "__main__":
+    stats = KpiPlotter()
     try:
         asyncio.get_event_loop().run_until_complete(main())
     except KeyboardInterrupt as e:
-        plot_kpis(
-            apply_controls_delays,
-            read_video_frame_delays,
-            network_delays,
-            fps_sent_over_time,
-            MB_sent_over_time,
-            wifi_signal_strength_over_time
-        )
+        stats.plot_kpis()
 
         print(f"Exiting : {e}")
-        exit
+        exit()
