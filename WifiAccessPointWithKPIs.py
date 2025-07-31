@@ -11,16 +11,14 @@ import cv2
 import struct
 import matplotlib
 matplotlib.use('Agg')
-import subprocess
-import re
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 VIDEO_AND_CONTROL_PORT = 9002
-PING_PONG_PORT = 9003
 
 width = 1280
 height = 720
 fps = 60
+kpi = False
 
 stats = KpiPlotter()
 
@@ -66,12 +64,14 @@ async def handle_video(stream, writer):
             writer.write(size + data)
             await writer.drain()
             
-            stats.fps_count += 1
-            stats.bps_count += (len(size) + len(data)) / 1000000
+            if kpi:
+                stats.fps_count += 1
+                stats.bps_count += (len(size) + len(data)) / 1000000
         else:
             print("Frame read failed.")
 
-        stats.calculate_local_video_delay(time_read_start)
+        if kpi:
+            stats.calculate_local_video_delay(time_read_start)
 
         await asyncio.sleep(1 / (fps * 2))
 
@@ -95,7 +95,8 @@ async def handle_controls(reader, car):
                 car.steering = float(msg.get("steering", 0.0))
                 car.throttle = float(msg.get("throttle", 0.0))
 
-                stats.calculate_local_control_delay(time_read_start)
+                if kpi:
+                    stats.calculate_local_control_delay(time_read_start)
             except json.JSONDecodeError:
                 print("Invalid JSON:", line)
 
@@ -111,57 +112,6 @@ async def handle_control_and_video(reader, writer, car, stream):
     except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
         print("Video and control connection closed.")
 
-
-async def send_ping(writer):
-        while True:
-            try:
-                timestamp = int(time.time() * 1000)
-                ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
-                writer.write(ping_msg.encode('utf-8'))
-                await writer.drain()
-                await asyncio.sleep(5)
-            except (ConnectionResetError, BrokenPipeError):
-                print("Ping connection lost.")
-                break
-
-async def read_pong(reader):
-    global stats
-
-    buffer = ""
-    while True:
-        try:
-            data = await reader.read(1024)
-            if not data:
-                break
-            buffer += data.decode('utf-8')
-            while '\n' in buffer:
-                line, buffer = buffer.split('\n', 1)
-                try:
-                    msg = json.loads(line)
-                    if msg["type"] == "pong":
-                        stats.calculate_network_delay(msg["timestamp"])
-                except json.JSONDecodeError:
-                    print("Invalid JSON:", line)            
-        except asyncio.IncompleteReadError:
-            print("Ping connection closed.")
-            break
-
-async def handle_stats(reader, writer):
-    print('Ping Pong client econnected')
-
-    global stats
-
-    try:
-        await asyncio.gather(
-            stats.collect_fps(),
-            stats.collect_bps(),
-            stats.collect_network_signal(),
-            send_ping(writer),
-            read_pong(reader)
-        )
-    except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
-        print("Ping pong connection closed.")
-
 async def servers(car, stream):
     control_and_video_server = await asyncio.start_server(
         lambda r, w: handle_control_and_video(r, w, car, stream),
@@ -170,19 +120,16 @@ async def servers(car, stream):
     )
     print(f"Control and video server listening on port {VIDEO_AND_CONTROL_PORT}")
 
-    ping_pong_server = await asyncio.start_server(
-        lambda r, w: handle_stats(r, w),
-        host='0.0.0.0',
-        port=PING_PONG_PORT
-    )
-    print(f"Ping pong server listening on port {PING_PONG_PORT}")
+    if kpi:
+        stats.start_kpi_server()
 
-    return control_and_video_server, ping_pong_server
+    return control_and_video_server
 
 def read_args():
     global width
     global height
     global fps
+    global kpi
 
     n = len(sys.argv)
     print("\nArguments passed:", end = " ")
@@ -196,6 +143,8 @@ def read_args():
                 height = int(res[1])
             if arg.startswith("fps"):
                 fps = int(arg[3:].split('=')[1])
+            if arg.startswith("kpi"):
+                kpi = True
     except Exception as e:
         print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
         exit

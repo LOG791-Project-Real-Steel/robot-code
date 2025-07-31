@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import re
 import subprocess
 import time
@@ -8,6 +9,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+
+PING_PONG_PORT = 9003
 
 class KpiPlotter:
     def __init__(self):
@@ -93,6 +96,63 @@ class KpiPlotter:
             times.append(datetime.datetime.fromtimestamp(timestamp_ms / 1000))
 
         return times, averages
+    
+    async def send_ping(self, writer):
+        while True:
+            try:
+                timestamp = int(time.time() * 1000)
+                ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
+                writer.write(ping_msg.encode('utf-8'))
+                await writer.drain()
+                await asyncio.sleep(5)
+            except (ConnectionResetError, BrokenPipeError):
+                print("Ping connection lost.")
+                break
+
+    async def read_pong(self, reader):
+        global stats
+
+        buffer = ""
+        while True:
+            try:
+                data = await reader.read(1024)
+                if not data:
+                    break
+                buffer += data.decode('utf-8')
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    try:
+                        msg = json.loads(line)
+                        if msg["type"] == "pong":
+                            self.calculate_network_delay(msg["timestamp"])
+                    except json.JSONDecodeError:
+                        print("Invalid JSON:", line)            
+            except asyncio.IncompleteReadError:
+                print("Ping connection closed.")
+                break
+
+    async def handle_stats(self, reader, writer):
+        print('Ping Pong client connected')
+        try:
+            await asyncio.gather(
+                self.collect_fps(),
+                self.collect_bps(),
+                self.collect_network_signal(),
+                self.send_ping(writer),
+                self.read_pong(reader)
+            )
+        except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
+            print("Ping pong connection closed.")
+    
+    async def start_kpi_server(self):
+        ping_pong_server = await asyncio.start_server(
+            lambda r, w: self.handle_stats(r, w),
+            host='0.0.0.0',
+            port=PING_PONG_PORT
+        )
+        print(f"Ping pong server listening on port {PING_PONG_PORT}")
+
+        return ping_pong_server
 
     def plot_kpis(self):
         print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
