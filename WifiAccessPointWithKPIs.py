@@ -104,8 +104,6 @@ async def handle_controls(reader, car):
 async def handle_control_and_video(reader, writer, car, stream):
     print("Video/Control client connected")
 
-    await asyncio.sleep(5)
-
     try:
         await asyncio.gather(
             handle_controls(reader, car),
