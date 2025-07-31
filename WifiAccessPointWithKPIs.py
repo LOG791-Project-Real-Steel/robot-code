@@ -143,15 +143,16 @@ def read_args():
                 height = int(res[1])
             if arg.startswith("fps"):
                 fps = int(arg[3:].split('=')[1])
-                if fps >= 60:
-                    fps = 1000
-                else:
-                    fps += 15
             if arg.startswith("kpi"):
                 kpi = True
     except Exception as e:
         print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
         exit
+
+    if fps >= 60:
+                    fps = 1000
+                else:
+                    fps += 15
 
 async def main():
     read_args()
