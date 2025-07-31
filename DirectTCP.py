@@ -121,7 +121,7 @@ async def servers(car, stream):
     print(f"Control and video server listening on port {VIDEO_AND_CONTROL_PORT}")
 
     if kpi:
-        await stats.start_kpi_server()
+        await stats.start_kpi_servers()
 
     return control_and_video_server
 
