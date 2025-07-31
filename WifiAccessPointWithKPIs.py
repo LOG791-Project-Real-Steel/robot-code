@@ -73,7 +73,7 @@ async def handle_video(stream, writer):
         if kpi:
             stats.calculate_local_video_delay(time_read_start)
 
-        await asyncio.sleep(1 / (fps * 2))
+        await asyncio.sleep(1 / (fps))
 
 
 async def handle_controls(reader, car):
@@ -143,6 +143,10 @@ def read_args():
                 height = int(res[1])
             if arg.startswith("fps"):
                 fps = int(arg[3:].split('=')[1])
+                if fps >= 60:
+                    fps = 1000
+                else:
+                    fps += 15
             if arg.startswith("kpi"):
                 kpi = True
     except Exception as e:
