@@ -150,9 +150,9 @@ def read_args():
         exit
 
     if fps >= 60:
-                    fps = 1000
-                else:
-                    fps += 15
+        fps = 1000
+    else:
+        fps += 15
 
 async def main():
     read_args()
