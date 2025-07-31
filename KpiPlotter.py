@@ -139,7 +139,7 @@ class KpiPlotter:
             file_size = struct.unpack('>I', file_size_data)[0]
 
             print(f"Receiving file: {fname} ({file_size} bytes)")
-            with aiofiles.open(f"received_{fname}", "wb") as f:
+            async with aiofiles.open(f"received_{fname}", "wb") as f:
                 remaining = file_size
                 while remaining:
                     chunk = await reader.read(min(4096, remaining))
@@ -172,6 +172,8 @@ class KpiPlotter:
     def load_csv_delays(self):
         def load_csv(name):
             try:
+                if isinstance(name, bytes):
+                    name = name.decode()
                 df = pd.read_csv(f"received_{name}")
                 df["timestamp"] = pd.to_datetime(df["timestamp"])
                 return list(zip(df["timestamp"], df["delay" if "delay" in df.columns else "fps"]))
