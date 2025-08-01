@@ -150,7 +150,6 @@ class KpiPlotter:
 
         print("CSV upload completed.")
         writer.close()
-        await writer.wait_closed()
     
     async def start_kpi_servers(self):
         ping_pong_server = await asyncio.start_server(
@@ -219,6 +218,7 @@ class KpiPlotter:
             plt.legend()
             plt.xticks(rotation=45)
 
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
         plt.figure(figsize=(12, 8))
         plot_combined("Total Video Delay", total_video, 1)
         plot_combined("Total Control Delay", total_control, 2)
