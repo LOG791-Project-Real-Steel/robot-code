@@ -124,108 +124,6 @@ class KpiPlotter:
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             print("Ping pong connection closed.")
 
-    async def handle_csv_upload(self, reader, writer):
-        print("CSV upload client connected.")
-        for filename in ['frame_delays.csv', 'control_delays.csv', 'fps_over_time.csv']:
-            # Read 4-byte filename length
-            size_data = await reader.readexactly(4)
-            size = struct.unpack('>I', size_data)[0]
-
-            # Read filename
-            fname = (await reader.readexactly(size)).decode()
-
-            # Read 4-byte file length
-            file_size_data = await reader.readexactly(4)
-            file_size = struct.unpack('>I', file_size_data)[0]
-
-            print(f"Receiving file: {fname} ({file_size} bytes)")
-            async with aiofiles.open(f"received_{fname}", "wb") as f:
-                remaining = file_size
-                while remaining:
-                    chunk = await reader.read(min(4096, remaining))
-                    if not chunk:
-                        break
-                    await f.write(chunk)
-                    remaining -= len(chunk)
-
-        print("CSV upload completed.")
-        writer.close()
-    
-    async def start_kpi_servers(self):
-        ping_pong_server = await asyncio.start_server(
-            lambda r, w: self.handle_stats(r, w),
-            host='0.0.0.0',
-            port=PING_PONG_PORT
-        )
-        print(f"Ping pong server listening on port {PING_PONG_PORT}")
-
-        oculus_files_server = await asyncio.start_server(
-            lambda r, w: self.handle_csv_upload(r, w),
-            host='0.0.0.0',
-            port=OCULUS_FILES_PORT
-        )
-        print(f"Ping pong server listening on port {PING_PONG_PORT}")
-
-        return ping_pong_server, oculus_files_server
-    
-    def load_csv_delays(self):
-        def load_csv(name):
-            try:
-                if isinstance(name, bytes):
-                    name = name.decode()
-                df = pd.read_csv(f"received_{name}")
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-                return list(zip(df["timestamp"], df["delay" if "delay" in df.columns else "fps"]))
-            except Exception as e:
-                print(f"Error loading {name}: {e}")
-                return []
-
-        self.client_video_delays = load_csv("frame_delays.csv")
-        self.client_control_delays = load_csv("control_delays.csv")
-
-    def plot_total_delays(self):
-        self.load_csv_delays()
-
-        def combine_delays(*lists):
-            # Assume all times are datetime
-            combined = []
-            for delay_list in lists:
-                for ts, delay in delay_list:
-                    combined.append((ts, delay))
-            combined.sort()
-            return combined
-
-        total_video = combine_delays(
-            [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.read_video_frame_delays],
-            [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.network_delays],
-            self.client_video_delays
-        )
-
-        total_control = combine_delays(
-            [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.apply_controls_delays],
-            [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.network_delays],
-            self.client_control_delays
-        )
-
-        def plot_combined(title, combined, subplot_index):
-            times, delays = zip(*combined)
-            plt.subplot(2, 1, subplot_index)
-            plt.plot(times, delays, label=title)
-            plt.xlabel("Time")
-            plt.ylabel("Delay (ms)")
-            plt.title(title)
-            plt.grid(True)
-            plt.legend()
-            plt.xticks(rotation=45)
-
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-        plt.figure(figsize=(12, 8))
-        plot_combined("Total Video Delay", total_video, 1)
-        plot_combined("Total Control Delay", total_control, 2)
-        plt.tight_layout()
-        plt.savefig("combined_delays.png")
-
-
     def average_by_time_buckets(self, data, bucket_ms=5000):
         if not data:
             return [], []
@@ -327,4 +225,106 @@ class KpiPlotter:
         plt.tight_layout()
         plt.savefig("robot_delays_over_time.png")
 
-        self.plot_total_delays()
+        #self.plot_total_delays() NOT FUNCTIONAL
+
+        
+    # async def handle_csv_upload(self, reader, writer):
+    #     print("CSV upload client connected.")
+    #     for filename in ['frame_delays.csv', 'control_delays.csv', 'fps_over_time.csv']:
+    #         # Read 4-byte filename length
+    #         size_data = await reader.readexactly(4)
+    #         size = struct.unpack('>I', size_data)[0]
+
+    #         # Read filename
+    #         fname = (await reader.readexactly(size)).decode()
+
+    #         # Read 4-byte file length
+    #         file_size_data = await reader.readexactly(4)
+    #         file_size = struct.unpack('>I', file_size_data)[0]
+
+    #         print(f"Receiving file: {fname} ({file_size} bytes)")
+    #         async with aiofiles.open(f"received_{fname}", "wb") as f:
+    #             remaining = file_size
+    #             while remaining:
+    #                 chunk = await reader.read(min(4096, remaining))
+    #                 if not chunk:
+    #                     break
+    #                 await f.write(chunk)
+    #                 remaining -= len(chunk)
+
+    #     print("CSV upload completed.")
+    #     writer.close()
+    
+    # async def start_kpi_servers(self):
+    #     ping_pong_server = await asyncio.start_server(
+    #         lambda r, w: self.handle_stats(r, w),
+    #         host='0.0.0.0',
+    #         port=PING_PONG_PORT
+    #     )
+    #     print(f"Ping pong server listening on port {PING_PONG_PORT}")
+
+    #     oculus_files_server = await asyncio.start_server(
+    #         lambda r, w: self.handle_csv_upload(r, w),
+    #         host='0.0.0.0',
+    #         port=OCULUS_FILES_PORT
+    #     )
+    #     print(f"Ping pong server listening on port {PING_PONG_PORT}")
+
+    #     return ping_pong_server, oculus_files_server
+    
+    # def load_csv_delays(self):
+    #     def load_csv(name):
+    #         try:
+    #             if isinstance(name, bytes):
+    #                 name = name.decode()
+    #             df = pd.read_csv(f"received_{name}")
+    #             df["timestamp"] = pd.to_datetime(df["timestamp"])
+    #             return list(zip(df["timestamp"], df["delay" if "delay" in df.columns else "fps"]))
+    #         except Exception as e:
+    #             print(f"Error loading {name}: {e}")
+    #             return []
+
+    #     self.client_video_delays = load_csv("frame_delays.csv")
+    #     self.client_control_delays = load_csv("control_delays.csv")
+
+    # def plot_total_delays(self):
+    #     self.load_csv_delays()
+
+    #     def combine_delays(*lists):
+    #         # Assume all times are datetime
+    #         combined = []
+    #         for delay_list in lists:
+    #             for ts, delay in delay_list:
+    #                 combined.append((ts, delay))
+    #         combined.sort()
+    #         return combined
+
+    #     total_video = combine_delays(
+    #         [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.read_video_frame_delays],
+    #         [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.network_delays],
+    #         self.client_video_delays
+    #     )
+
+    #     total_control = combine_delays(
+    #         [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.apply_controls_delays],
+    #         [(datetime.datetime.fromtimestamp(ts / 1000), d) for ts, d in self.network_delays],
+    #         self.client_control_delays
+    #     )
+
+    #     def plot_combined(title, combined, subplot_index):
+    #         times, delays = zip(*combined)
+    #         plt.subplot(2, 1, subplot_index)
+    #         plt.plot(times, delays, label=title)
+    #         plt.xlabel("Time")
+    #         plt.ylabel("Delay (ms)")
+    #         plt.title(title)
+    #         plt.grid(True)
+    #         plt.legend()
+    #         plt.xticks(rotation=45)
+
+    #     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    #     plt.figure(figsize=(12, 8))
+    #     plot_combined("Total Video Delay", total_video, 1)
+    #     plot_combined("Total Control Delay", total_control, 2)
+    #     plt.tight_layout()
+    #     plt.savefig("combined_delays.png")
