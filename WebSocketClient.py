@@ -78,20 +78,29 @@ async def receive_commands(websocket, car: NvidiaRacecar):
     except asyncio.CancelledError:
         pass
 
+async def keep_alive(ws):
+    try:
+        while True:
+            await asyncio.sleep(PING_INTERVAL)
+            pong = await ws.ping()
+            await asyncio.wait_for(pong, timeout=PING_TIMEOUT)
+    except (asyncio.TimeoutError, websockets.ConnectionClosed):
+        log("ping timeout – closing websocket")
+        await ws.close()
+    except asyncio.CancelledError:
+        pass
+
 async def run_session(uri: str, car: NvidiaRacecar, stream):
-    async with websockets.connect(
-        uri,
-        ping_interval=PING_INTERVAL,
-        ping_timeout=PING_TIMEOUT,
-    ) as websocket:
+    async with websockets.connect(uri) as websocket:
         log("websocket connected")
         
         sender = create_task(send_frames(websocket, stream))
         receiver = create_task(receive_commands(websocket, car))
         watcher  = create_task(websocket.wait_closed())
+        pinger   = create_task(keep_alive(websocket))
         
         done, pending = await asyncio.wait(
-            [sender, receiver, watcher],
+            [sender, receiver, watcher, pinger],
             return_when=asyncio.FIRST_EXCEPTION
         )
         for task in pending:
