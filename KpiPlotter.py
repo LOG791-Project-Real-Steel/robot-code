@@ -1,4 +1,5 @@
 import asyncio
+import csv
 import aiofiles
 import pandas as pd
 import datetime
@@ -148,10 +149,20 @@ class KpiPlotter:
 
         return times, averages
     
+    def write_csv(self):
+        with open('outpute.csv', 'w', newline='') as csvFile:
+            writer = csv.writer(csvFile)
+            writer.writerow(['timestamp', 'delay'])
+            for row in self.network_delays:
+                writer.writerow(row)
+        print("wrote to csv")
+
     def plot_kpis(self):
         print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
         print(f"Avg video delay: {np.mean([v for _, v in self.read_video_frame_delays]):.2f} ms")
         print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
+
+        self.write_csv()
 
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
         plt.figure(figsize=(12, 12))
