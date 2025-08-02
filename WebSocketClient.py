@@ -25,7 +25,7 @@ def __gstreamer_pipeline(
             "nvvidconv flip-method=%d ! "
             "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
             "videoconvert ! "
-            "video/x-raw, format=(string)BGR ! appsink max-buffers=1 drop=True"
+            "video/x-raw, format=YUY2 ! jpegenc ! appsink max-buffers=1 drop=True"
             % (
                     camera_id,
                     capture_width,
@@ -45,9 +45,7 @@ async def send_image(websocket, stream):
         else:
             ret, frame = stream.read()
             if ret:
-                frame = np.ascontiguousarray(frame, dtype=np.uint8)
-                _, encoded_image = cv2.imencode('.jpg', frame)
-                await websocket.send(encoded_image.tobytes())
+                await websocket.send(frame.tobytes())
             else:
                 print("Error: Could not read frame.")
 
