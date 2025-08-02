@@ -255,13 +255,13 @@ class KpiPlotter:
     #     print("CSV upload completed.")
     #     writer.close()
     
-    # async def start_kpi_servers(self):
-    #     ping_pong_server = await asyncio.start_server(
-    #         lambda r, w: self.handle_stats(r, w),
-    #         host='0.0.0.0',
-    #         port=PING_PONG_PORT
-    #     )
-    #     print(f"Ping pong server listening on port {PING_PONG_PORT}")
+    async def start_kpi_servers(self):
+        ping_pong_server = await asyncio.start_server(
+            lambda r, w: self.handle_stats(r, w),
+            host='0.0.0.0',
+            port=PING_PONG_PORT
+        )
+        print(f"Ping pong server listening on port {PING_PONG_PORT}")
 
     #     oculus_files_server = await asyncio.start_server(
     #         lambda r, w: self.handle_csv_upload(r, w),
@@ -270,7 +270,7 @@ class KpiPlotter:
     #     )
     #     print(f"Ping pong server listening on port {PING_PONG_PORT}")
 
-    #     return ping_pong_server, oculus_files_server
+        return ping_pong_server#, oculus_files_server
     
     # def load_csv_delays(self):
     #     def load_csv(name):
