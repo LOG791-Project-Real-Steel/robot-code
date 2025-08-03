@@ -154,12 +154,16 @@ class KpiPlotter:
     async def read_pong(self, ws):
         async for msg in ws:
             try:
+                if isinstance(msg, bytes):
+                    msg = msg.decode('utf-8')
                 data = json.loads(msg)
                 print(f"Received message: {data}") # LOGS (Remove for better performance)
                 if data['type'] == "pong":
                     self.calculate_network_delay(msg["timestamp"])
             except json.JSONDecodeError:
                 print("Error: Bad JSON from client")
+            except Exception as e:
+                print(f"Unhandled error in read_pong: {e}")
 
     def total_delay(self, robot, network, oculus, filename):
         robot_delay_per_second = self.average_by_time_buckets(robot)
