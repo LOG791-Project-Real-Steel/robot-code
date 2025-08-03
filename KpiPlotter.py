@@ -127,7 +127,7 @@ class KpiPlotter:
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             print("Ping pong connection closed.")
 
-    def average_by_time_buckets(self, data, bucket_ms=5000):
+    def average_by_time_buckets(self, data, bucket_ms=1000):
         if not data:
             return [], []
         
@@ -164,8 +164,9 @@ class KpiPlotter:
         print(f"Avg video delay: {np.mean([v for _, v in self.read_video_frame_delays]):.2f} ms")
         print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
 
+        self.write_csv(self.average_by_time_buckets(self.read_video_frame_delays), "read_video_frame_delays")
         self.write_csv(self.fps_sent_over_time, 'fps_sent_over_time')
-        self.write_csv(self.fps_sent_over_time, 'MBps_sent_over_time')
+        self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'MBps_sent_over_time')
 
 
 
@@ -270,7 +271,7 @@ class KpiPlotter:
 
         print("CSV upload completed.")
         self.load_csv_delays()
-        print(self.client_video_delays[20:])
+        print(self.client_video_delays[:20])
         writer.close()
     
     async def start_kpi_servers(self):
