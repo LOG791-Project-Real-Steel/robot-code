@@ -226,13 +226,11 @@ async def run_once(uri: str, car: NvidiaRacecar):
         sender   = loop.create_task(send_frames(ws))
         receiver = loop.create_task(receive_commands(ws, car))
         pinger   = loop.create_task(keep_alive(ws))
+        pingpong = loop.create_task(stats.handle_stats(ws))
         watcher  = loop.create_task(ws.wait_closed())
 
-        if kpi:
-            await stats.start_kpi_servers()
-
         done, pending = await asyncio.wait(
-            [sender, receiver, pinger, watcher],
+            [sender, receiver, pinger, pingpong, watcher],
             return_when=asyncio.FIRST_EXCEPTION
         )
         for task in pending:
