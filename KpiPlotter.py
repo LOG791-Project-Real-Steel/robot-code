@@ -25,6 +25,8 @@ class KpiPlotter:
         self.fps_sent_over_time = []
         self.MB_sent_over_time = []
         self.wifi_signal_strength_over_time = []  # RSSI
+        self.client_video_delays = []
+        self.client_control_delays = []
 
         self.fps_count = 0
         self.bps_count = 0
@@ -149,20 +151,23 @@ class KpiPlotter:
 
         return times, averages
     
-    def write_csv(self):
-        with open('outpute.csv', 'w', newline='') as csvFile:
+    def write_csv(self, list, filename):
+        with open(filename+'.csv', 'w', newline='') as csvFile:
             writer = csv.writer(csvFile)
             writer.writerow(['timestamp', 'delay'])
-            for row in self.network_delays:
+            for row in list:
                 writer.writerow(row)
-        print("wrote to csv")
+        print("wrote to csv " + filename)
 
     def plot_kpis(self):
         print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
         print(f"Avg video delay: {np.mean([v for _, v in self.read_video_frame_delays]):.2f} ms")
         print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
 
-        self.write_csv()
+        self.write_csv(self.fps_sent_over_time, 'fps_sent_over_time')
+        self.write_csv(self.fps_sent_over_time, 'MBps_sent_over_time')
+
+
 
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
         plt.figure(figsize=(12, 12))
@@ -239,32 +244,34 @@ class KpiPlotter:
         #self.plot_total_delays() NOT FUNCTIONAL
 
         
-    # async def handle_csv_upload(self, reader, writer):
-    #     print("CSV upload client connected.")
-    #     for filename in ['frame_delays.csv', 'control_delays.csv', 'fps_over_time.csv']:
-    #         # Read 4-byte filename length
-    #         size_data = await reader.readexactly(4)
-    #         size = struct.unpack('>I', size_data)[0]
+    async def handle_csv_upload(self, reader, writer):
+        print("CSV upload client connected.")
+        for filename in ['frame_delays.csv', 'control_delays.csv', 'fps_over_time.csv']:
+            # Read 4-byte filename length
+            size_data = await reader.readexactly(4)
+            size = struct.unpack('>I', size_data)[0]
 
-    #         # Read filename
-    #         fname = (await reader.readexactly(size)).decode()
+            # Read filename
+            fname = (await reader.readexactly(size)).decode()
 
-    #         # Read 4-byte file length
-    #         file_size_data = await reader.readexactly(4)
-    #         file_size = struct.unpack('>I', file_size_data)[0]
+            # Read 4-byte file length
+            file_size_data = await reader.readexactly(4)
+            file_size = struct.unpack('>I', file_size_data)[0]
 
-    #         print(f"Receiving file: {fname} ({file_size} bytes)")
-    #         async with aiofiles.open(f"received_{fname}", "wb") as f:
-    #             remaining = file_size
-    #             while remaining:
-    #                 chunk = await reader.read(min(4096, remaining))
-    #                 if not chunk:
-    #                     break
-    #                 await f.write(chunk)
-    #                 remaining -= len(chunk)
+            print(f"Receiving file: {fname} ({file_size} bytes)")
+            async with aiofiles.open(f"received_{fname}", "wb") as f:
+                remaining = file_size
+                while remaining:
+                    chunk = await reader.read(min(4096, remaining))
+                    if not chunk:
+                        break
+                    await f.write(chunk)
+                    remaining -= len(chunk)
 
-    #     print("CSV upload completed.")
-    #     writer.close()
+        print("CSV upload completed.")
+        self.load_csv_delays()
+        print(self.client_video_delays[20:])
+        writer.close()
     
     async def start_kpi_servers(self):
         ping_pong_server = await asyncio.start_server(
@@ -274,29 +281,29 @@ class KpiPlotter:
         )
         print(f"Ping pong server listening on port {PING_PONG_PORT}")
 
-    #     oculus_files_server = await asyncio.start_server(
-    #         lambda r, w: self.handle_csv_upload(r, w),
-    #         host='0.0.0.0',
-    #         port=OCULUS_FILES_PORT
-    #     )
-    #     print(f"Ping pong server listening on port {PING_PONG_PORT}")
+        oculus_files_server = await asyncio.start_server(
+            lambda r, w: self.handle_csv_upload(r, w),
+            host='0.0.0.0',
+            port=OCULUS_FILES_PORT
+        )
+        print(f"Oculus files server listening on port {OCULUS_FILES_PORT}")
 
-        return ping_pong_server#, oculus_files_server
+        return ping_pong_server, oculus_files_server
     
-    # def load_csv_delays(self):
-    #     def load_csv(name):
-    #         try:
-    #             if isinstance(name, bytes):
-    #                 name = name.decode()
-    #             df = pd.read_csv(f"received_{name}")
-    #             df["timestamp"] = pd.to_datetime(df["timestamp"])
-    #             return list(zip(df["timestamp"], df["delay" if "delay" in df.columns else "fps"]))
-    #         except Exception as e:
-    #             print(f"Error loading {name}: {e}")
-    #             return []
+    def load_csv_delays(self):
+        def load_csv(name):
+            try:
+                if isinstance(name, bytes):
+                    name = name.decode()
+                df = pd.read_csv(f"received_{name}")
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                return list(zip(df["timestamp"], df["delay" if "delay" in df.columns else "fps"]))
+            except Exception as e:
+                print(f"Error loading {name}: {e}")
+                return []
 
-    #     self.client_video_delays = load_csv("frame_delays.csv")
-    #     self.client_control_delays = load_csv("control_delays.csv")
+        self.client_video_delays = load_csv("frame_delays.csv")
+        self.client_control_delays = load_csv("control_delays.csv")
 
     # def plot_total_delays(self):
     #     self.load_csv_delays()
