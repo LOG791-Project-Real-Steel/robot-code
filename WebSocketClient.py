@@ -51,7 +51,7 @@ parser.add_argument("--quality", type=int, default=75,
                     help="JPEG quality 1-100 (default 75)")
 parser.add_argument("--logs",      action="store_true")
 parser.add_argument("--logsRtt",   action="store_true")
-parser.add_argument("--kpi", action="store-true", default=False)
+parser.add_argument("--kpi", action="store_true", default=False)
 args = parser.parse_args()
 
 QUALITY          = max(1, min(args.quality, 100))
