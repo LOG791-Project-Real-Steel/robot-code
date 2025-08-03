@@ -20,7 +20,7 @@ OCULUS_FILES_PORT = 9004
 class KpiPlotter:
     def __init__(self):
         self.apply_controls_delays = []
-        self.read_video_frame_delays = []
+        self.send_video_frame_delays = []
         self.network_delays = []
         self.fps_sent_over_time = []
         self.MB_sent_over_time = []
@@ -41,7 +41,7 @@ class KpiPlotter:
         self.calculate_delay(time_read_start, self.apply_controls_delays)
 
     def calculate_local_video_delay(self, time_read_start):
-        self.calculate_delay(time_read_start, self.read_video_frame_delays)
+        self.calculate_delay(time_read_start, self.send_video_frame_delays)
 
     def calculate_network_delay(self, time_read_start):
         now = int(time.time() * 1000)
@@ -161,10 +161,12 @@ class KpiPlotter:
 
     def plot_kpis(self):
         print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
-        print(f"Avg video delay: {np.mean([v for _, v in self.read_video_frame_delays]):.2f} ms")
+        print(f"Avg video delay: {np.mean([v for _, v in self.send_video_frame_delays]):.2f} ms")
         print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
 
-        self.write_csv(self.average_by_time_buckets(self.read_video_frame_delays), "read_video_frame_delays")
+        self.write_csv(self.average_by_time_buckets(self.send_video_frame_delays), "send_video_frame_delays")
+        self.write_csv(self.average_by_time_buckets(self.apply_controls_delays), "read_controls_delays")
+        self.write_csv(self.network_delays, "network_delays")
         self.write_csv(self.fps_sent_over_time, 'fps_sent_over_time')
         self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'MBps_sent_over_time')
 
