@@ -285,4 +285,7 @@ if __name__ == "__main__":
     finally:
         Gst.deinit()
         loop.close()
+
+        if kpi:
+            stats.plot_kpis()
         print("Exited cleanly")
