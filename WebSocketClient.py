@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import json, asyncio, websockets, time, statistics, cv2, numpy as np
+import gi, json, asyncio, websockets, time, statistics, cv2, numpy as np
+gi.require_version('Gst', '1.0')
+gi.require_version('GstApp', '1.0')
+from gi.repository import Gst, GstApp, GLib
 from datetime import datetime
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 MIDDLEWARE_URI = "ws://74.56.22.147:8765/robot"
-
 PING_INTERVAL     = 5           # seconds – send ping this often
 PING_TIMEOUT      = 5           # seconds – drop connection if no pong
 RTT_WINDOW        = 4           # keep this many RTT samples
@@ -34,123 +36,122 @@ STREAM_FPS    = 30         # fps - actual frames per seconds
 # -----------------------------------------------
 SENSOR_MODE = 4
 
-PROFILES = [           #  index 0 = “best”
-    (1280, 720, 80),   # 0 | ≈ 60–90 kB
-    ( 960, 540, 75),   # 1 | ≈ 40–60 kB
-    ( 640, 360, 70),   # 2 | ≈ 25–40 kB   ▶ default
-    ( 480, 270, 65),   # 3 | ≈ 15–25 kB
+QUALITIES = [ # index 0 = “best”
+    80,   # 0 | ≈ 60–90 kB
+    75,   # 1 | ≈ 40–60 kB
+    70,   # 2 | ≈ 25–40 kB   ▶ default
+    65,   # 3 | ≈ 15–25 kB
 ]
-INITIAL_PROFILE = 2
+INITIAL_QUALITY = 2
+
+Gst.init(None)
 
 def log(msg, *extra):
     print(datetime.now().isoformat(sep=' ', timespec='seconds'), msg, *extra)
 
-def gst_pipeline():
-    return (
+def build_pipeline(quality):
+    pipe_str = (
         f"nvarguscamerasrc sensor-id=0 sensor-mode={SENSOR_MODE} ! "
         f"video/x-raw(memory:NVMM),format=NV12,width={CAPTURE_WIDTH},height={CAPTURE_HEIGHT},framerate={CAPTURE_FPS}/1 ! "
         f"nvvidconv flip-method=0 ! "
-        f"video/x-raw,format=BGRx,width={STREAM_WIDTH},height={STREAM_HEIGHT} ! "
-        f"videoconvert ! "
-        f"video/x-raw,format=YUY2 ! jpegenc ! "
-        f"appsink max-buffers=1 drop=True"
+        f"video/x-raw(memory:NVMM),format=NV12 ! "
+        f"nvjpegenc quality={quality} ! "
+        f"appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
     )
+    pipeline = Gst.parse_launch(pipe_str)
+    sink = pipeline.get_by_name("sink")
+    return pipeline, sink
    
 loop = asyncio.get_event_loop()
 create_task = loop.create_task
 
-profile_idx = INITIAL_PROFILE
-profile_lock = asyncio.Lock()
-rtt_samples  = []
+q_idx = INITIAL_QUALITY
+q_lock = asyncio.Lock()
+rtt_history  = []
 
-def encode_frame(frame, w, h, quality):
-    if frame.shape[1] != w or frame.shape[0] != h:
-        frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
-    ok, buf = cv2.imencode(
-        '.jpg', frame,
-        [int(cv2.IMWRITE_JPEG_QUALITY), quality,
-         int(cv2.IMWRITE_JPEG_PROGRESSIVE), 1]
-    )
-    return buf.tobytes() if ok else None
+class Camera:
+    def __init__(self, quality):
+        self.pipeline, self.sink = build_pipeline(quality)
+        self.pipeline.set_state(Gst.State.PLAYING)
 
-async def send_frames(ws, stream):
-    global profile_idx
+    def change_quality(self, q):
+        enc = next(e for e in self.pipeline.iterate_elements() if e.name.startswith('nvjpegenc'))
+        enc.set_property("quality", q)
+
+    def fetch_jpeg(self):
+        sample = self.sink.emit("pull-sample")
+        buf = sample.get_buffer()
+        success, map_info = buf.map(Gst.MapFlags.READ)
+        if not success:
+            return None
+        data = map_info.data
+        buf.unmap(map_info)
+        return data
+
+    def stop(self):
+        self.pipeline.set_state(Gst.State.NULL)
+
+async def send_frames(ws, cam: Camera):
+    global q_idx
     skipped = 0
-    try:
-        while True:
-            t0 = time.perf_counter()
-            ret, frame = stream.read()
-            if not ret:
-                log("Error: camera read failed")
-                await asyncio.sleep(0.05)
-                continue
+    while True:
+        t0 = time.perf_counter()
+        data = cam.fetch_jpeg()
+        if data is None:
+            await asyncio.sleep(0.01)
+            continue
 
-            async with profile_lock:
-                w, h, q = PROFILES[profile_idx]
+        if ws.transport.get_write_buffer_size() > HIGH_WATER:
+            skipped += 1
+            if skipped >= SKIP_LIMIT and q_idx < len(QUALITIES) - 1:
+                async with q_lock:
+                    q_idx += 1
+                    new_profile = QUALITIES[q_idx]
+                    cam.change_quality(new_profile)
+                    log(f"congestion – quality → {new_profile}")
+                    skipped = 0
+            await asyncio.sleep(0)
+            continue
+        skipped = 0
 
-            data = encode_frame(frame, w, h, q)
-            if data is None:
-                continue
-            
-            if ws.transport.get_write_buffer_size() > HIGH_WATER:
-                skipped += 1
-                if skipped >= SKIP_LIMIT and profile_idx < len(PROFILES) - 1:
-                    async with profile_lock:
-                        profile_idx += 1
-                        log(f"congestion – auto-downgrade to profile {profile_idx} {PROFILES[profile_idx]}")
-                        skipped = 0
-                await asyncio.sleep(0)
-                continue
-            skipped = 0
-
-            await ws.send(data)
-            
-            await asyncio.sleep(max(0, (1/STREAM_FPS) - (time.perf_counter() - t0)))
-    except asyncio.CancelledError:
-        pass
+        await ws.send(data)
+        await asyncio.sleep(max(0, (1/STREAM_FPS) - (time.perf_counter() - t0)))
 
 async def receive_commands(websocket, car: NvidiaRacecar):
-    try:
-        async for msg in websocket:
-            try:
-                data = json.loads(msg)
-                log("Received message:", data) # LOGS (Remove for better performance)
-                car.steering = data.get('steering', 0.0)
-                car.throttle = data.get('throttle', 0.0)
-            except json.JSONDecodeError:
-                log("Error: Bad JSON from client")
-    except asyncio.CancelledError:
-        pass
+    async for msg in websocket:
+        try:
+            data = json.loads(msg)
+            log("Received message:", data) # LOGS (Remove for better performance)
+            car.steering = data.get('steering', 0.0)
+            car.throttle = data.get('throttle', 0.0)
+        except json.JSONDecodeError:
+            log("Error: Bad JSON from client")
 
-async def keep_alive(ws):
-    global profile_idx
-    try:
-        while True:
-            await asyncio.sleep(PING_INTERVAL)
-            t0 = time.perf_counter()
-            pong_waiter = await ws.ping()
-            await asyncio.wait_for(pong_waiter, timeout=PING_TIMEOUT)
-            rtt = time.perf_counter() - t0
+async def keep_alive(ws, cam: Camera):
+    global q_idx
+    while True:
+        await asyncio.sleep(PING_INTERVAL)
+        t0 = time.perf_counter()
+        pong_waiter = await ws.ping()
+        await asyncio.wait_for(pong_waiter, timeout=PING_TIMEOUT)
+        rtt = time.perf_counter() - t0
 
-            rtt_samples.append(rtt)
-            if len(rtt_samples) > RTT_WINDOW:
-                rtt_samples.pop(0)
-            avg = statistics.mean(rtt_samples)
+        rtt_history.append(rtt)
+        if len(rtt_history) > RTT_WINDOW:
+            rtt_history.pop(0)
+        avg = statistics.mean(rtt_history)
 
-            async with profile_lock:
-                if avg > DOWNGRADE_RTT_MIN and profile_idx < len(PROFILES) - 1:
-                    profile_idx += 1
-                    log(f"RTT {avg*1e3:.0f} ms – downgrade → {PROFILES[profile_idx]}")
-                elif avg < UPGRADE_RTT_MAX and profile_idx > 0:
-                    profile_idx -= 1
-                    log(f"RTT {avg*1e3:.0f} ms – upgrade → {PROFILES[profile_idx]}")
-    except (asyncio.TimeoutError, websockets.ConnectionClosed):
-        log("ping timeout – close")
-        await ws.close()
-    except asyncio.CancelledError:
-        pass
+        async with q_lock:
+            if avg > DOWNGRADE_RTT_MIN and q_idx < len(QUALITIES) - 1:
+                q_idx += 1
+                cam.change_quality(QUALITIES[q_idx])
+                log(f"RTT {avg*1e3:.0f} ms – downgrade → {QUALITIES[q_idx]}")
+            elif avg < UPGRADE_RTT_MAX and q_idx > 0:
+                q_idx -= 1
+                cam.change_quality(QUALITIES[q_idx])
+                log(f"RTT {avg*1e3:.0f} ms – upgrade → {QUALITIES[q_idx]}")
 
-async def run_session(uri: str, car: NvidiaRacecar, stream):
+async def run_once(uri: str, car: NvidiaRacecar, cam: Camera):
     async with websockets.connect(
         uri,
         ping_interval=None,
@@ -159,9 +160,9 @@ async def run_session(uri: str, car: NvidiaRacecar, stream):
     ) as ws:
         log("WebSocket connected")
         
-        sender   = loop.create_task(send_frames(ws, stream))
+        sender   = loop.create_task(send_frames(ws, cam))
         receiver = loop.create_task(receive_commands(ws, car))
-        pinger   = loop.create_task(keep_alive(ws))
+        pinger   = loop.create_task(keep_alive(ws, cam))
         watcher  = loop.create_task(ws.wait_closed())
 
         done, pending = await asyncio.wait(
@@ -174,9 +175,7 @@ async def run_session(uri: str, car: NvidiaRacecar, stream):
     log("WebSocket closed")
     
 async def main():
-    stream = cv2.VideoCapture(gst_pipeline(), cv2.CAP_GSTREAMER)
-    if not stream.isOpened():
-        raise RuntimeError("camera open failed")
+    cam = Camera(QUALITIES[INITIAL_QUALITY])
 
     car = NvidiaRacecar()
     car.steering_gain = -1
@@ -187,7 +186,7 @@ async def main():
     backoff = 0.5
     while True:
         try:
-            await run_session(MIDDLEWARE_URI, car, stream)
+            await run_once(MIDDLEWARE_URI, car, cam)
             backoff = 0.5
         except Exception as e:
             log(f"Error: {e} – reconnecting in {backoff}s")
@@ -196,4 +195,7 @@ async def main():
             backoff = min(backoff * 2, MAX_BACKOFF)
 
 if __name__ == "__main__":
-    loop.run_until_complete(main())
+    try:
+        loop.run_until_complete(main())
+    finally:
+        Gst.deinit()
