@@ -68,7 +68,7 @@ LOG_ENABLED   = args.logs
 # ──────────────────────────────────────────────────────────────────
 
 stats = KpiPlotter()
-kpi = False
+kpi = True
 
 Gst.init(None)
 loop = asyncio.get_event_loop()
