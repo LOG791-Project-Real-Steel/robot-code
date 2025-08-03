@@ -19,7 +19,7 @@ from datetime import datetime
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 # ─── connection + timing ──────────────────────────────────────────────
-MIDDLEWARE_URI  = "ws://74.56.22.147:8765/robot"
+MIDDLEWARE_URI  = "ws://74.56.22.147:8764/robot"
 
 PING_INTERVAL = 5   # seconds
 PING_TIMEOUT  = 5   # seconds

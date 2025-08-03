@@ -8,6 +8,7 @@ import re
 import struct
 import subprocess
 import time
+import websockets
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -33,31 +34,31 @@ class KpiPlotter:
         self.bps_count = 0
 
     async def start_kpi_servers(self):
-            ping_pong_server = await asyncio.start_server(
-                lambda r, w: self.handle_stats(r, w),
-                host='0.0.0.0',
-                port=PING_PONG_PORT
-            )
-            print(f"Ping pong server listening on port {PING_PONG_PORT}")
-
-            oculus_files_server = await asyncio.start_server(
+            await asyncio.start_server(
                 lambda r, w: self.handle_csv_upload(r, w),
                 host='0.0.0.0',
                 port=OCULUS_FILES_PORT
             )
             print(f"Oculus files server listening on port {OCULUS_FILES_PORT}")
 
-            return ping_pong_server, oculus_files_server
+            async with websockets.connect(
+                "ws://74.56.22.147:8764/robot/ping",
+                ping_interval=None,
+                max_queue=None,
+                max_size=None
+            ) as ws:
+                print("pingpong WebSocket connected")
+                await self.handle_stats(ws)
     
-    async def handle_stats(self, reader, writer):
+    async def handle_stats(self, ws):
         print('Ping Pong client connected')
         try:
             await asyncio.gather(
                 self.collect_fps(),
                 self.collect_bps(),
                 self.collect_network_signal(),
-                self.send_ping(writer),
-                self.read_pong(reader)
+                self.send_ping(ws),
+                self.read_pong(ws)
             )
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             print("Ping pong connection closed.")
@@ -138,39 +139,31 @@ class KpiPlotter:
                 now = int(time.time() * 1000)
                 self.wifi_signal_strength_over_time.append((now, signal_dbm))
     
-    async def send_ping(self, writer):
+    async def send_ping(self, ws):
         while True:
             try:
+                print("pinging")
                 timestamp = int(time.time() * 1000)
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
-                writer.write(ping_msg.encode('utf-8'))
-                await writer.drain()
+                await ws.send(ping_msg.encode('utf-8'))
                 await asyncio.sleep(5)
             except (ConnectionResetError, BrokenPipeError):
                 print("Ping connection lost.")
                 break
 
-    async def read_pong(self, reader):
-        global stats
-
-        buffer = ""
-        while True:
+    async def read_pong(self, ws):
+        async for msg in ws:
             try:
-                data = await reader.read(1024)
-                if not data:
-                    break
-                buffer += data.decode('utf-8')
-                while '\n' in buffer:
-                    line, buffer = buffer.split('\n', 1)
-                    try:
-                        msg = json.loads(line)
-                        if msg["type"] == "pong":
-                            self.calculate_network_delay(msg["timestamp"])
-                    except json.JSONDecodeError:
-                        print("Invalid JSON:", line)            
-            except asyncio.IncompleteReadError:
-                print("Ping connection closed.")
-                break
+                if isinstance(msg, bytes):
+                    msg = msg.decode('utf-8')
+                data = json.loads(msg)
+                print(f"Received message: {data}") # LOGS (Remove for better performance)
+                if data['type'] == "pong":
+                    self.calculate_network_delay(data["timestamp"])
+            except json.JSONDecodeError:
+                print("Error: Bad JSON from client")
+            except Exception as e:
+                print(f"Unhandled error in read_pong: {e}")
 
     def total_delay(self, robot, network, oculus, filename):
         robot_delay_per_second = self.average_by_time_buckets(robot)
