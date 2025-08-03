@@ -9,6 +9,7 @@ Flags
   --logs          verbose logs (steering/throttle)
   --logsRtt       also log every RTT ping
 """
+from DummyRacecar import DummyRacecar
 from KpiPlotter import KpiPlotter
 import gi, argparse, json, asyncio, websockets, time, signal, statistics, sys
 gi.require_version('Gst', '1.0')
@@ -143,7 +144,12 @@ async def keep_alive(ws):
             log(f"RTT {rtt*1e3:.0f} ms (avg {avg*1e3:.0f} ms)")
 
 async def run_session(uri, cam: Camera):
-    car = NvidiaRacecar()
+    try:
+        car = NvidiaRacecar()
+    except Exception as e:
+        print(f"Warning: Failed to initialize NvidiaRacecar due to I2C error: {e}")
+        print("Using DummyRacecar instead.")
+        car = DummyRacecar()
     car.steering_gain  = -1
     car.throttle_gain  = 0.8
 
