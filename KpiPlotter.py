@@ -215,7 +215,7 @@ class KpiPlotter:
         # Total Video delay
         times, avgs = zip(*total_video_delay)
         total_avgs = list(avgs)
-        times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
+        times = list(times)
 
         robot_times, avgs = zip(*avg_send_video_delay)
         robot = list(avgs)
