@@ -9,6 +9,7 @@ Flags
   --logs          verbose logs (steering/throttle)
   --logsRtt       also log every RTT ping
 """
+from KpiPlotter import KpiPlotter
 import gi, argparse, json, asyncio, websockets, time, signal, statistics, sys
 gi.require_version('Gst', '1.0')
 gi.require_version('GstApp', '1.0')
@@ -50,12 +51,15 @@ parser.add_argument("--quality", type=int, default=75,
                     help="JPEG quality 1-100 (default 75)")
 parser.add_argument("--logs",      action="store_true")
 parser.add_argument("--logsRtt",   action="store_true")
+parser.add_argument("--kpi", action="store-true", default=False)
 args = parser.parse_args()
 
 QUALITY          = max(1, min(args.quality, 100))
 LOG_ENABLED      = args.logs
 LOG_RTT_ENABLED  = args.logsRtt
+kpi = args.kpi
 
+stats = KpiPlotter()
 loop = asyncio.get_event_loop()
 
 # ─── helpers ──────────────────────────────────────────────────────────
@@ -95,19 +99,30 @@ class Camera:
 async def send_frames(ws, cam: Camera):
     while True:
         t0 = time.perf_counter()
+        time_read_start = int(time.time() * 1000)
+
         data = cam.grab()
         if data:
             await ws.send(data)
+
+            if kpi:
+                stats.fps_count += 1
+                stats.bps_count += (len(data)) / 1000000
+                stats.calculate_local_video_delay(time_read_start)
         await asyncio.sleep(max(0.0, (1/TARGET_FPS) - (time.perf_counter() - t0)))
 
 async def receive_commands(ws, car: NvidiaRacecar):
     async for msg in ws:
+        time_read_start = int(time.time() * 1000)
         try:
             data = json.loads(msg)
             if LOG_ENABLED:
                 log("Controls: ", data)
             car.steering = data.get("steering", 0.0)
             car.throttle = data.get("throttle", 0.0)
+            
+            if kpi:
+                stats.calculate_local_control_delay(time_read_start)
         except json.JSONDecodeError:
             log("Bad JSON")
 
@@ -143,6 +158,10 @@ async def run_session(uri, cam: Camera):
                     loop.create_task(keep_alive(ws)),
                     loop.create_task(ws.wait_closed())
                 ]
+
+                if kpi:
+                    stats.start_kpi_servers()
+
                 done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
                 for task in pending:
                     task.cancel()
@@ -173,5 +192,8 @@ if __name__ == "__main__":
     try:
         loop.run_until_complete(main())
     finally:
+        if kpi:
+            stats.plot_kpis()
+
         Gst.deinit()
         loop.close()
