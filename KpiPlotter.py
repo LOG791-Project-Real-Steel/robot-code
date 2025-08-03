@@ -233,7 +233,7 @@ class KpiPlotter:
         oculus = list(avgs)
         oculus_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(oculus_times)]
 
-        plt.subplot(5, 1, 1)
+        plt.subplot(3, 1, 1)
         plt.plot(times, total_avgs, label="Total video delays (robot+net+oculus)")
         plt.plot(robot_times, robot, label="Capturing and sending video delays")
         plt.plot(net_times, net, label="Network delays")
@@ -258,7 +258,7 @@ class KpiPlotter:
         oculus = list(avgs)
         oculus_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(oculus_times)]
 
-        plt.subplot(5, 1, 2)
+        plt.subplot(3, 1, 2)
         plt.plot(times, total_avgs, label="Total control delays (oculus+net+robot)")
         plt.plot(robot_times, robot, label="Capturing and sending controls delays")
         plt.plot(net_times, net, label="Network delays")
@@ -279,7 +279,7 @@ class KpiPlotter:
         oculus_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
         oculus_avgs = list(avgs)
 
-        plt.subplot(5, 1, 3)
+        plt.subplot(3, 1, 3)
         plt.plot(robot_times, robot_avgs, label="FPS sent by robot")
         plt.plot(oculus_times, oculus_avgs, label="FPS received by oculus")
         plt.xlabel("Timestamp (ms)")
@@ -289,11 +289,17 @@ class KpiPlotter:
         plt.legend()
         plt.xticks(rotation=45)
 
+        plt.tight_layout()
+        plt.savefig("stats_over_time1.png")
+
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+        plt.figure(figsize=(12, 12))
+
         # MegaBytes per second
         times, avgs = zip(*mbps_sent)
-        times = list(times)
+        times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
         avgs = list(avgs)
-        plt.subplot(5, 1, 4)
+        plt.subplot(2, 1, 1)
         plt.plot(times, avgs, label="MBps sent by robot")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("MB sent per second")
@@ -304,9 +310,9 @@ class KpiPlotter:
 
         # Network Signal quality (RSSI) over time
         times, avgs = zip(*self.average_by_time_buckets(self.wifi_signal_strength_over_time))
-        times = list(times)
+        times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
         avgs = list(avgs)
-        plt.subplot(5, 1, 5)
+        plt.subplot(2, 1, 2)
         plt.plot(times, avgs, label="RSSI (avg/5s)")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("RSSI")
@@ -316,7 +322,7 @@ class KpiPlotter:
         plt.xticks(rotation=45)
 
         plt.tight_layout()
-        plt.savefig("stats_over_time.png")
+        plt.savefig("stats_over_time2.png")
     
     def load_csv_delays(self):
         def load_csv(name):
