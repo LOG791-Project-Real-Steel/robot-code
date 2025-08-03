@@ -211,6 +211,7 @@ class KpiPlotter:
         plt.figure(figsize=(12, 12))
 
         # Total Video delay
+        print(total_video_delay)
         times, avgs = zip(*total_video_delay)
         times = list(times)
         avgs = list(avgs)
