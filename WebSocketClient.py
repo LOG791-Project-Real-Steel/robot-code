@@ -34,6 +34,16 @@ TARGET_WIDTH  = 640  # Target -> 360p output
 TARGET_HEIGHT = 360     
 TARGET_FPS    = 30
 
+# ─────── SENSOR_MODE (with cheatsheet) ─────────
+#   0: 3264×2464 @ 21 fps      ◄─ (full 8 MP)
+#   1: 3264×1848 @ 28 fps
+#   2: 1920×1080 @ 30 fps
+#   3: 1640×1232 @ 30 fps
+#   4: 1280×720  @ 60 fps      ◄─ (default 720p)
+#   5: 1280×720  @120 fps
+SENSOR_MODE = 4
+# ───────────────────────────────────────────────
+
 # ─── CLI flags ────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--quality", type=int, default=75,
@@ -54,9 +64,8 @@ def log(*items):
 
 def build_pipeline(quality):
     return Gst.parse_launch(
-        f"nvarguscamerasrc ! "
-        f"video/x-raw(memory:NVMM),width={CAPTURE_WIDTH},height={CAPTURE_HEIGHT},"
-        f"framerate={CAPTURE_FPS}/1,format=NV12 ! "
+        f"nvarguscamerasrc sensor-id=0 sensor-mode={SENSOR_MODE} ! "
+        f"video/x-raw(memory:NVMM),format=NV12,width={CAPTURE_WIDTH},height={CAPTURE_HEIGHT},framerate={CAPTURE_FPS}/1 !"
         f"nvvidconv flip-method=0 ! "
         f"video/x-raw(memory:NVMM),width={TARGET_WIDTH},height={TARGET_HEIGHT},format=NV12 ! "
         f"nvjpegenc quality={quality} ! "
