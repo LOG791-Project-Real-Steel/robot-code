@@ -248,7 +248,7 @@ class KpiPlotter:
         # Total Control delay
         times, avgs = zip(*total_control_delay)
         times = list(times)
-        avgs = list(avgs)
+        total_avgs = list(avgs)
 
         robot_times, avgs = zip(*avg_read_controls_delay)
         robot = list(avgs)
@@ -259,7 +259,7 @@ class KpiPlotter:
         oculus_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(oculus_times)]
 
         plt.subplot(5, 1, 2)
-        plt.plot(times, avgs, label="Total control delays (oculus+net+robot)")
+        plt.plot(times, total_avgs, label="Total control delays (oculus+net+robot)")
         plt.plot(robot_times, robot, label="Capturing and sending controls delays")
         plt.plot(net_times, net, label="Network delays")
         plt.plot(oculus_times, oculus, label="Reading and applying controls delays")
