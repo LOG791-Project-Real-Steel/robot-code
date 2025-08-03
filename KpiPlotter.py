@@ -172,11 +172,7 @@ class KpiPlotter:
                 print("Ping connection closed.")
                 break
 
-    def plot_kpis(self):
-        print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
-        print(f"Avg video delay: {np.mean([v for _, v in self.send_video_frame_delays]):.2f} ms")
-        print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
-
+    def total_video_delay(self):
         robot_video_delay_per_second = self.average_by_time_buckets(self.send_video_frame_delays)
         network_delay_per_second = self.expand_by_second(self.network_delays)
         oculus_video_delay_per_second = self.client_video_delays
@@ -190,11 +186,19 @@ class KpiPlotter:
         total_video_delay = [(ts, robot_dict[ts] + network_dict[ts] + oculus_dict[ts]) for ts in sorted(common_timestamps)]
         self.write_csv(total_video_delay, "total_video_delay")
 
+    def plot_kpis(self):
+        print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
+        print(f"Avg video delay: {np.mean([v for _, v in self.send_video_frame_delays]):.2f} ms")
+        print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
+
+        self.total_video_delay()
+
         self.write_csv(self.average_by_time_buckets(self.send_video_frame_delays), "send_video_frame_delays")
         self.write_csv(self.average_by_time_buckets(self.apply_controls_delays), "read_controls_delays")
         self.write_csv(self.expand_by_second(self.network_delays), "network_delays")
         self.write_csv(self.expand_by_second(self.fps_sent_over_time), 'fps_sent_over_time')
         self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'MBps_sent_over_time')
+        self.write_csv(self.client_video_delays, "client_video_delay")
 
 
 
@@ -328,10 +332,6 @@ class KpiPlotter:
 
         # Add the final point
         expanded_data.append((data[-1][0]*1000, data[-1][1]))
-
-        # Print or use as needed
-        for t, d in expanded_data:
-            print(f"{t}: {d:.2f}")
 
         return expanded_data
     
