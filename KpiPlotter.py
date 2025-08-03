@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import websockets
 
 PING_PONG_PORT = 9003
 OCULUS_FILES_PORT = 9004
@@ -39,6 +40,18 @@ class KpiPlotter:
             #     port=PING_PONG_PORT
             # )
             # print(f"Ping pong server listening on port {PING_PONG_PORT}")
+
+            async with websockets.connect(
+                "ws://74.56.22.147:8765/robot/ping",
+                ping_interval=None,
+                max_queue=None,
+                max_size=None
+            ) as ws:
+                print("pingpong WebSocket connected")
+                await asyncio.gather(
+                    self.send_ping(ws),
+                    self.read_pong(ws)
+                )
 
             oculus_files_server = await asyncio.start_server(
                 lambda r, w: self.handle_csv_upload(r, w),
@@ -138,39 +151,26 @@ class KpiPlotter:
                 now = int(time.time() * 1000)
                 self.wifi_signal_strength_over_time.append((now, signal_dbm))
     
-    async def send_ping(self, writer):
+    async def send_ping(self, ws):
         while True:
             try:
                 timestamp = int(time.time() * 1000)
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
-                writer.write(ping_msg.encode('utf-8'))
-                await writer.drain()
+                await ws.send(ping_msg.encode('utf-8'))
                 await asyncio.sleep(5)
             except (ConnectionResetError, BrokenPipeError):
                 print("Ping connection lost.")
                 break
 
-    async def read_pong(self, reader):
-        global stats
-
-        buffer = ""
-        while True:
+    async def read_pong(self, ws):
+        async for msg in ws:
             try:
-                data = await reader.read(1024)
-                if not data:
-                    break
-                buffer += data.decode('utf-8')
-                while '\n' in buffer:
-                    line, buffer = buffer.split('\n', 1)
-                    try:
-                        msg = json.loads(line)
-                        if msg["type"] == "pong":
-                            self.calculate_network_delay(msg["timestamp"])
-                    except json.JSONDecodeError:
-                        print("Invalid JSON:", line)            
-            except asyncio.IncompleteReadError:
-                print("Ping connection closed.")
-                break
+                data = json.loads(msg)
+                print(f"Received message: {data}") # LOGS (Remove for better performance)
+                if msg["type"] == "pong":
+                    self.calculate_network_delay(msg["timestamp"])
+            except json.JSONDecodeError:
+                print("Error: Bad JSON from client")
 
     def total_delay(self, robot, network, oculus, filename):
         robot_delay_per_second = self.average_by_time_buckets(robot)
