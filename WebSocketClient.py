@@ -215,6 +215,10 @@ async def run_once(uri: str, car: NvidiaRacecar):
     global stats
     global kpi
 
+
+    if kpi:
+        await stats.start_kpi_servers()
+        
     async with websockets.connect(
         uri,
         ping_interval=None,
@@ -227,9 +231,6 @@ async def run_once(uri: str, car: NvidiaRacecar):
         receiver = loop.create_task(receive_commands(ws, car))
         pinger   = loop.create_task(keep_alive(ws))
         watcher  = loop.create_task(ws.wait_closed())
-
-        if kpi:
-            await stats.start_kpi_servers()
 
         done, pending = await asyncio.wait(
             [sender, receiver, pinger, watcher],
