@@ -30,9 +30,8 @@ CAPTURE_WIDTH   = 1280  # pixels
 CAPTURE_HEIGHT  = 720   # pixels
 CAPTURE_FPS     = 60  
 
-TARGET_WIDTH  = 640  # Target -> 360p output
-TARGET_HEIGHT = 360     
-TARGET_FPS    = 30
+DEFAULT_RESOLUTION = 360     
+DEFAULT_FPS        = 30
 
 # ─────── SENSOR_MODE (with cheatsheet) ─────────
 #   0: 3264×2464 @ 21 fps      ◄─ (full 8 MP)
@@ -44,17 +43,23 @@ TARGET_FPS    = 30
 SENSOR_MODE = 4
 # ───────────────────────────────────────────────
 
+POSSIBLE_RESOLUTIONS = [144, 240, 360, 480, 720]
+POSSIBLE_FPS = range(25, 61, 1)
+
 # ─── CLI flags ────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("--quality", type=int, default=75,
-                    help="JPEG quality 1-100 (default 75)")
-parser.add_argument("--logs",      action="store_true")
-parser.add_argument("--logsRtt",   action="store_true")
+parser.add_argument("--quality", type=int, default=75, help="JPEG quality 1-100 (default 75)")
+parser.add_argument("--logs", action="store_true")
+parser.add_argument("--logsRtt", action="store_true")
+parser.add_argument("--res", choices=POSSIBLE_RESOLUTIONS, type=int, default=DEFAULT_RESOLUTION)
+parser.add_argument("--fps", choices=POSSIBLE_FPS, type=int, default=DEFAULT_FPS)
 args = parser.parse_args()
 
-QUALITY          = max(1, min(args.quality, 100))
-LOG_ENABLED      = args.logs
-LOG_RTT_ENABLED  = args.logsRtt
+QUALITY           = max(1, min(args.quality, 100))
+LOG_ENABLED       = args.logs
+LOG_RTT_ENABLED   = args.logsRtt
+TARGET_RESOLUTION = args.res
+TARGET_FPS        = args.fps
 
 loop = asyncio.get_event_loop()
 
@@ -67,7 +72,7 @@ def build_pipeline(quality):
         f"nvarguscamerasrc sensor-id=0 sensor-mode={SENSOR_MODE} ! "
         f"video/x-raw(memory:NVMM),format=NV12,width={CAPTURE_WIDTH},height={CAPTURE_HEIGHT},framerate={CAPTURE_FPS}/1 !"
         f"nvvidconv flip-method=0 ! "
-        f"video/x-raw(memory:NVMM),width={TARGET_WIDTH},height={TARGET_HEIGHT},format=NV12 ! "
+        f"video/x-raw(memory:NVMM),width={int(TARGET_RESOLUTION * 16/9)},height={TARGET_RESOLUTION},format=NV12 ! "
         f"nvjpegenc quality={quality} ! "
         f"appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
     )
