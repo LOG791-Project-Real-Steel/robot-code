@@ -23,20 +23,20 @@ PING_INTERVAL     = 5           # seconds – send ping this often
 PING_TIMEOUT      = 5           # seconds – drop connection if no pong
 RTT_WINDOW        = 4           # keep this many RTT samples
 # more eager adaptation:
-UPGRADE_RTT_MAX   = 50  / 1000  # seconds -  avg RTT <  50 ms → step _up_
-DOWNGRADE_RTT_MIN = 120 / 1000  # seconds -  avg RTT > 120 ms → step _down_
+UPGRADE_RTT_MAX   = 50  / 1000  # seconds -  avg RTT <  50 ms → step up
+DOWNGRADE_RTT_MIN = 120 / 1000  # seconds -  avg RTT > 120 ms → step down
 MAX_BACKOFF       = 30          # seconds - reconnect cap
 # react to smaller buffers, downshift faster:
-HIGH_WATER        = 128 * 1024  # bytes
+HIGH_WATER        = 96 * 1024   # bytes
 SKIP_LIMIT        = 1           # skipped frames before profile downgrade
 
 CAPTURE_WIDTH  = 1280  # pixels  – width of capture
 CAPTURE_HEIGHT = 720   # pixels  – height of capture
 CAPTURE_FPS    = 60    # fps - frames per seconds of capture
 
-TARGET_FPS = 30  # fps - target frames per seconds
+TARGET_FPS = 25  # fps - target frames per seconds
 # cap a single JPEG size to avoid “flash on motion” bursts:
-FRAME_MAX_BYTES = 110 * 1024  # ~110 kB per frame (tune 100–180 kB)
+FRAME_MAX_BYTES = 100 * 1024  # ~100 kB per frame (tune 50–180 kB)
 # ───────────────────────────────────────────────────────────────────────────────────────
 
 # ─────── SENSOR_MODE (with cheatsheet) ─────────
@@ -58,15 +58,17 @@ p.add_argument("--mode", choices=["auto", "fixed"], default="auto")
 p.add_argument("--quality", type=int, default=70,
                 help="JPEG quality when --mode fixed (1-100)")
 p.add_argument("--logs", action="store_true")
+p.add_argument("--logsRtt", action="store_true")
 args = p.parse_args()
-MODE_AUTO     = args.mode == "auto"
-FIXED_QUALITY = max(1, min(args.quality, 100))
-LOG_ENABLED   = args.logs
+MODE_AUTO       = args.mode == "auto"
+FIXED_QUALITY   = max(1, min(args.quality, 100))
+LOG_ENABLED     = args.logs
+LOG_RTT_ENABLED = args.logsRtt
 # ──────────────────────────────────────────────────────────────────
 
 Gst.init(None)
 loop = asyncio.get_event_loop()
-INITIAL_QUALITY_IDX = 2          # start @70 %
+INITIAL_QUALITY_IDX = QUALITIES.index(70)  # start @70 %
 
 def log(*a): print(datetime.now().isoformat(' ', 'seconds'), *a)
 
@@ -178,7 +180,7 @@ async def keep_alive(ws):
         rtt_history.append(rtt)
         rtt_history[:] = rtt_history[-RTT_WINDOW:]
         avg = statistics.mean(rtt_history)
-
+        
         async with quality_lock:
             if avg > DOWNGRADE_RTT_MIN and quality_idx < len(QUALITIES) - 1:
                 quality_idx += 1
@@ -188,6 +190,9 @@ async def keep_alive(ws):
                 quality_idx -= 1
                 cam.change_quality(QUALITIES[quality_idx])
                 log(f"RTT {avg*1e3:.0f} ms – upgrade quality → {QUALITIES[quality_idx]}%")
+            else:
+                if LOG_RTT_ENABLED:
+                    log(f"RTT {rtt*1e3:.0f} ms (avg {avg*1e3:.0f} ms)")
 
 async def run_once(uri: str, car: NvidiaRacecar):
     async with websockets.connect(
