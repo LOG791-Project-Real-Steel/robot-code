@@ -142,14 +142,12 @@ class KpiPlotter:
             buckets[bucket].append(value)
 
         times = []
-        averages = []
         for bucket, values in sorted(buckets.items()):
             avg = sum(values) / len(values)
-            averages.append(avg)
             timestamp_ms = start_time + bucket * bucket_ms
-            times.append(datetime.datetime.fromtimestamp(timestamp_ms / 1000))
+            times.append((timestamp_ms, avg))
 
-        return times, averages
+        return times
     
     def write_csv(self, list, filename):
         with open(filename+'.csv', 'w', newline='') as csvFile:
@@ -187,7 +185,7 @@ class KpiPlotter:
         plt.xticks(rotation=45)
 
         # Video delays
-        times, avgs = self.average_by_time_buckets(self.read_video_frame_delays)
+        times, avgs = self.average_by_time_buckets(self.send_video_frame_delays)
         plt.subplot(6, 1, 2)
         plt.plot(times, avgs, label="Video Delays (avg/5s)", color='orange')
         plt.xlabel("Timestamp (ms)")
@@ -299,7 +297,7 @@ class KpiPlotter:
                 if isinstance(name, bytes):
                     name = name.decode()
                 df = pd.read_csv(f"received_{name}")
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                df["timestamp"] = df["timestamp"]
                 return list(zip(df["timestamp"], df["delay" if "delay" in df.columns else "fps"]))
             except Exception as e:
                 print(f"Error loading {name}: {e}")
