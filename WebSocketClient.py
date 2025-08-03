@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from DummyRacecar import DummyRacecar
 from KpiPlotter import KpiPlotter
 import gi, json, asyncio, websockets, time, statistics, cv2, numpy as np
 gi.require_version('Gst', '1.0')
@@ -203,11 +204,15 @@ async def run_once(uri: str, car: NvidiaRacecar, cam: Camera):
 async def main():
     cam = Camera(QUALITIES[INITIAL_QUALITY])
 
-    car = NvidiaRacecar()
-    car.steering_gain = -1
-    car.steering_offset = 0
+
+    try:
+        car = NvidiaRacecar()
+    except Exception as e:
+        print(f"Warning: Failed to initialize NvidiaRacecar due to I2C error: {e}")
+        print("Using DummyRacecar instead.")
+        car = DummyRacecar()
     car.steering = 0
-    car.throttle_gain = 0.8
+    car.throttle = 0
 
     print("Robot is ready")
     
