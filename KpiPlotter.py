@@ -144,7 +144,7 @@ class KpiPlotter:
         times = []
         for bucket, values in sorted(buckets.items()):
             avg = sum(values) / len(values)
-            timestamp_ms = start_time + bucket * bucket_ms
+            timestamp_ms = (start_time + bucket * bucket_ms)/1000
             times.append((timestamp_ms, avg))
 
         return times
@@ -191,7 +191,7 @@ class KpiPlotter:
         self.write_csv(self.average_by_time_buckets(self.send_video_frame_delays), "send_video_frame_delays")
         self.write_csv(self.average_by_time_buckets(self.apply_controls_delays), "read_controls_delays")
         self.write_csv(self.expand_by_second(self.network_delays), "network_delays")
-        self.write_csv(self.fps_sent_over_time, 'fps_sent_over_time')
+        self.write_csv(self.expand_by_second(self.fps_sent_over_time), 'fps_sent_over_time')
         self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'MBps_sent_over_time')
 
 
