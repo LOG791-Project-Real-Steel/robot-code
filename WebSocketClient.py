@@ -166,7 +166,7 @@ async def run_session(uri, cam: Camera):
                 ]
 
                 if kpi:
-                    stats.start_kpi_servers()
+                    await stats.start_kpi_servers()
 
                 done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
                 for task in pending:
