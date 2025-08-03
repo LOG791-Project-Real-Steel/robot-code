@@ -88,7 +88,6 @@ class KpiPlotter:
 
         print("CSV upload completed.")
         self.load_csv_delays()
-        print(self.client_video_delays[:20])
         writer.close()
 
     def calculate_delay(self, time_read_start, list):
@@ -305,7 +304,7 @@ class KpiPlotter:
         times = []
         for bucket, values in sorted(buckets.items()):
             avg = sum(values) / len(values)
-            timestamp_ms = start_time + bucket * bucket_ms
+            timestamp_ms = ((start_time + bucket * bucket_ms) // 1000) * 1000
             times.append((timestamp_ms, avg))
 
         return times
