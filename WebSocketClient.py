@@ -20,7 +20,7 @@ from datetime import datetime
 from jetracer.nvidia_racecar import NvidiaRacecar
 
 # ───────── connection + timing ────────────────────────────────────────────────────────
-MIDDLEWARE_URI = "ws://74.56.22.147:8765/robot"  # Port 8764 is the WebSocket Server #2
+MIDDLEWARE_URI = "ws://74.56.22.147:8764/robot"  # Port 8764 is the WebSocket Server #2
 
 PING_INTERVAL     = 5           # seconds – send ping this often
 PING_TIMEOUT      = 5           # seconds – drop connection if no pong
@@ -217,8 +217,8 @@ async def run_once(uri: str, car: NvidiaRacecar):
 
 
     if kpi:
-        await stats.start_kpi_servers()
-        
+        stats.start_kpi_servers()
+
     async with websockets.connect(
         uri,
         ping_interval=None,
