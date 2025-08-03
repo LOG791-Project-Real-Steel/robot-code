@@ -48,10 +48,7 @@ class KpiPlotter:
                 max_size=None
             ) as ws:
                 print("pingpong WebSocket connected")
-                await asyncio.gather(
-                    self.send_ping(ws),
-                    self.read_pong(ws)
-                )
+                await self.handle_stats(ws)
 
             oculus_files_server = await asyncio.start_server(
                 lambda r, w: self.handle_csv_upload(r, w),
@@ -62,15 +59,15 @@ class KpiPlotter:
 
             return ping_pong_server, oculus_files_server
     
-    async def handle_stats(self, reader, writer):
+    async def handle_stats(self, ws):
         print('Ping Pong client connected')
         try:
             await asyncio.gather(
                 self.collect_fps(),
                 self.collect_bps(),
                 self.collect_network_signal(),
-                self.send_ping(writer),
-                self.read_pong(reader)
+                self.send_ping(ws),
+                self.read_pong(ws)
             )
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             print("Ping pong connection closed.")
@@ -154,6 +151,7 @@ class KpiPlotter:
     async def send_ping(self, ws):
         while True:
             try:
+                print("pinging")
                 timestamp = int(time.time() * 1000)
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
                 await ws.send(ping_msg.encode('utf-8'))
