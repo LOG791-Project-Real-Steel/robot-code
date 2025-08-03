@@ -172,7 +172,7 @@ class KpiPlotter:
                 print("Ping connection closed.")
                 break
 
-    def total_delay(self, robot, network, oculus):
+    def total_delay(self, robot, network, oculus, filename):
         robot_delay_per_second = self.average_by_time_buckets(robot)
         network_delay_per_second = self.expand_by_second(network)
         oculus_delay_per_second = self.average_by_time_buckets(oculus)
@@ -184,7 +184,7 @@ class KpiPlotter:
         common_timestamps = set(robot_dict) & set(network_dict) & set(oculus_dict)
 
         total_delay = [(datetime.datetime.fromtimestamp(ts/1000), robot_dict[ts] + network_dict[ts] + oculus_dict[ts]) for ts in sorted(common_timestamps)]
-        self.write_csv(total_delay, "total_control_delay")
+        self.write_csv(total_delay, filename)
         return total_delay
 
     def plot_kpis(self):
@@ -192,8 +192,8 @@ class KpiPlotter:
         print(f"Avg video delay: {np.mean([v for _, v in self.send_video_frame_delays]):.2f} ms")
         print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
 
-        total_video_delay = self.total_delay(self.send_video_frame_delays, self.network_delays, self.client_video_delays)
-        total_control_delay = self.total_delay(self.apply_controls_delays, self.network_delays, self.client_control_delays)
+        total_video_delay = self.total_delay(self.send_video_frame_delays, self.network_delays, self.client_video_delays, "total_video_delay")
+        total_control_delay = self.total_delay(self.apply_controls_delays, self.network_delays, self.client_control_delays, "total_control_delay")
 
         self.write_csv(self.average_by_time_buckets(self.send_video_frame_delays), "send_video_frame_delays")
         self.write_csv(self.average_by_time_buckets(self.apply_controls_delays), "read_controls_delays")
@@ -211,17 +211,27 @@ class KpiPlotter:
         plt.figure(figsize=(12, 12))
 
         # Total Video delay
-        print(total_video_delay)
         times, avgs = zip(*total_video_delay)
         times = list(times)
         avgs = list(avgs)
-        print(times)
-        print(avgs)
-        plt.subplot(1, 1, 1)
+        plt.subplot(2, 1, 1)
         plt.plot(times, avgs, label="Total video delays (avg/1s)")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("Delay (ms)")
         plt.title("Video Delay Over Time")
+        plt.grid(True)
+        plt.legend()
+        plt.xticks(rotation=45)
+
+        # Total Control delay
+        times, avgs = zip(*total_control_delay)
+        times = list(times)
+        avgs = list(avgs)
+        plt.subplot(2, 1, 2)
+        plt.plot(times, avgs, label="Total control delays (avg/1s)")
+        plt.xlabel("Timestamp (ms)")
+        plt.ylabel("Delay (ms)")
+        plt.title("Control Delay Over Time")
         plt.grid(True)
         plt.legend()
         plt.xticks(rotation=45)
