@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from KpiPlotter import KpiPlotter
 import gi, json, asyncio, websockets, time, statistics, cv2, numpy as np
 gi.require_version('Gst', '1.0')
 gi.require_version('GstApp', '1.0')
@@ -43,6 +44,9 @@ QUALITIES = [ # index 0 = “best”
     65,   # 3 | ≈ 15–25 kB
 ]
 INITIAL_QUALITY = 2
+
+stats = KpiPlotter()
+kpi = False
 
 Gst.init(None)
 
@@ -93,9 +97,14 @@ class Camera:
 
 async def send_frames(ws, cam: Camera):
     global q_idx
+    global stats
+    global kpi
+
     skipped = 0
     while True:
         t0 = time.perf_counter()
+        time_read_start = int(time.time() * 1000)
+
         data = cam.fetch_jpeg()
         if data is None:
             await asyncio.sleep(0.01)
@@ -115,15 +124,26 @@ async def send_frames(ws, cam: Camera):
         skipped = 0
 
         await ws.send(data)
+        
+        if kpi:
+            stats.fps_count += 1
+            stats.bps_count += (len(data)) / 1000000
+            stats.calculate_local_video_delay(time_read_start)
+
+
         await asyncio.sleep(max(0, (1/STREAM_FPS) - (time.perf_counter() - t0)))
 
 async def receive_commands(websocket, car: NvidiaRacecar):
     async for msg in websocket:
+        time_read_start = int(time.time() * 1000)
         try:
             data = json.loads(msg)
             log("Received message:", data) # LOGS (Remove for better performance)
             car.steering = data.get('steering', 0.0)
             car.throttle = data.get('throttle', 0.0)
+
+            if kpi:
+                stats.calculate_local_control_delay(time_read_start)
         except json.JSONDecodeError:
             log("Error: Bad JSON from client")
 
@@ -152,6 +172,9 @@ async def keep_alive(ws, cam: Camera):
                 log(f"RTT {avg*1e3:.0f} ms – upgrade → {QUALITIES[q_idx]}")
 
 async def run_once(uri: str, car: NvidiaRacecar, cam: Camera):
+    global stats
+    global kpi
+
     async with websockets.connect(
         uri,
         ping_interval=None,
@@ -164,6 +187,9 @@ async def run_once(uri: str, car: NvidiaRacecar, cam: Camera):
         receiver = loop.create_task(receive_commands(ws, car))
         pinger   = loop.create_task(keep_alive(ws, cam))
         watcher  = loop.create_task(ws.wait_closed())
+
+        if kpi:
+            await stats.start_kpi_servers()
 
         done, pending = await asyncio.wait(
             [sender, receiver, pinger, watcher],
