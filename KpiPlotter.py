@@ -156,7 +156,7 @@ class KpiPlotter:
             try:
                 data = json.loads(msg)
                 print(f"Received message: {data}") # LOGS (Remove for better performance)
-                if data[0] == "pong":
+                if data['type'] == "pong":
                     self.calculate_network_delay(msg["timestamp"])
             except json.JSONDecodeError:
                 print("Error: Bad JSON from client")
