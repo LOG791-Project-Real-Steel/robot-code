@@ -34,7 +34,7 @@ class KpiPlotter:
         self.bps_count = 0
 
     async def start_kpi_servers(self):
-            asyncio.start_server(
+            await asyncio.start_server(
                 lambda r, w: self.handle_csv_upload(r, w),
                 host='0.0.0.0',
                 port=OCULUS_FILES_PORT
