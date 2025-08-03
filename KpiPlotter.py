@@ -27,6 +27,7 @@ class KpiPlotter:
         self.wifi_signal_strength_over_time = []  # RSSI
         self.client_video_delays = []
         self.client_control_delays = []
+        self.client_received_fps = []
 
         self.fps_count = 0
         self.bps_count = 0
@@ -144,7 +145,7 @@ class KpiPlotter:
         times = []
         for bucket, values in sorted(buckets.items()):
             avg = sum(values) / len(values)
-            timestamp_ms = (start_time + bucket * bucket_ms)/1000
+            timestamp_ms = start_time + bucket * bucket_ms
             times.append((timestamp_ms, avg))
 
         return times
@@ -164,7 +165,7 @@ class KpiPlotter:
             for t in range(t_start, t_end):
                 # Linear interpolation
                 interp_delay = d_start + (d_end - d_start) * (t - t_start) / (t_end - t_start)
-                expanded_data.append((t, interp_delay))
+                expanded_data.append((t * 1000, interp_delay))
 
         # Add the final point
         expanded_data.append((data[-1][0], data[-1][1]))
@@ -329,8 +330,9 @@ class KpiPlotter:
                 print(f"Error loading {name}: {e}")
                 return []
 
-        self.client_video_delays = load_csv("frame_delays.csv")
-        self.client_control_delays = load_csv("control_delays.csv")
+        self.client_video_delays = self.average_by_time_buckets(load_csv("frame_delays.csv"))
+        self.client_control_delays = self.average_by_time_buckets(load_csv("control_delays.csv"))
+        self.client_received_fps = self.average_by_time_buckets(load_csv("fps_over_time.csv"))
 
     # def plot_total_delays(self):
     #     self.load_csv_delays()
