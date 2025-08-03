@@ -185,40 +185,54 @@ class KpiPlotter:
 
         total_delay = [(datetime.datetime.fromtimestamp(ts/1000), robot_dict[ts] + network_dict[ts] + oculus_dict[ts]) for ts in sorted(common_timestamps)]
         self.write_csv(total_delay, filename)
-        return total_delay
+        return total_delay, [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(common_timestamps)]
 
     def plot_kpis(self):
         print(f"Avg control delay: {np.mean([v for _, v in self.apply_controls_delays]):.2f} ms")
         print(f"Avg video delay: {np.mean([v for _, v in self.send_video_frame_delays]):.2f} ms")
         print(f"Avg network delay: {np.mean([v for _, v in self.network_delays]):.2f} ms")
 
-        total_video_delay = self.total_delay(self.send_video_frame_delays, self.network_delays, self.client_video_delays, "total_video_delay")
+        total_video_delay, common_video_ts = self.total_delay(self.send_video_frame_delays, self.network_delays, self.client_video_delays, "total_video_delay")
         total_control_delay = self.total_delay(self.apply_controls_delays, self.network_delays, self.client_control_delays, "total_control_delay")
 
-        self.write_csv(self.average_by_time_buckets(self.send_video_frame_delays), "send_video_frame_delays")
-        self.write_csv(self.average_by_time_buckets(self.apply_controls_delays), "read_controls_delays")
-        self.write_csv(self.expand_by_second(self.network_delays), "network_delays")
-        self.write_csv(self.expand_by_second(self.fps_sent_over_time), 'fps_sent_over_time')
-        self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'MBps_sent_over_time')
+        avg_send_video_delay = self.average_by_time_buckets(self.send_video_frame_delays)
+        self.write_csv(avg_send_video_delay, "robot_send_video_frame_delays")
+        avg_read_controls_delay = self.average_by_time_buckets(self.apply_controls_delays)
+        self.write_csv(avg_read_controls_delay, "robot_read_controls_delays")
+        avg_network_delay = self.expand_by_second(self.network_delays)
+        self.write_csv(avg_network_delay, "network_delays")
+        self.write_csv(self.expand_by_second(self.fps_sent_over_time), 'robot_fps_sent_over_time')
+        self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'robot_MBps_sent_over_time')
 
         self.write_csv(self.expand_by_second(self.client_received_fps), "oculus_received_fps")
-        self.write_csv(self.average_by_time_buckets(self.client_control_delays), "client_control_delays")
-        self.write_csv(self.average_by_time_buckets(self.client_video_delays), "client_video_delays")
-
-
+        self.write_csv(self.average_by_time_buckets(self.client_control_delays), "oculus_control_delays")
+        avg_read_video_delay = self.average_by_time_buckets(self.client_video_delays)
+        self.write_csv(avg_read_video_delay, "oculus_client_video_delays")
 
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
         plt.figure(figsize=(12, 12))
 
         # Total Video delay
         times, avgs = zip(*total_video_delay)
-        times = list(times)
-        avgs = list(avgs)
+        total_avgs = list(avgs)
+
+        times, avgs = zip(*avg_send_video_delay)
+        robot = list(avgs)
+
+        times, avgs = zip(*avg_network_delay)
+        net = list(avgs)
+
+        times, avgs = zip(*avg_read_video_delay)
+        oculus = list(avgs)
+
         plt.subplot(2, 1, 1)
-        plt.plot(times, avgs, label="Total video delays (avg/1s)")
+        plt.plot(common_video_ts, total_avgs, label="Total video delays")
+        plt.plot(common_video_ts, robot, label="Capturing and sending video delays")
+        plt.plot(common_video_ts, net, label="Network delays")
+        plt.plot(common_video_ts, oculus, label="Reading and displaying video delays")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("Delay (ms)")
-        plt.title("Video Delay Over Time")
+        plt.title("Video Delay Over Time (avg/1s)")
         plt.grid(True)
         plt.legend()
         plt.xticks(rotation=45)
@@ -228,79 +242,13 @@ class KpiPlotter:
         times = list(times)
         avgs = list(avgs)
         plt.subplot(2, 1, 2)
-        plt.plot(times, avgs, label="Total control delays (avg/1s)")
+        plt.plot(times, avgs, label="Total control delays")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("Delay (ms)")
-        plt.title("Control Delay Over Time")
+        plt.title("Control Delay Over Time (avg/1s)")
         plt.grid(True)
         plt.legend()
         plt.xticks(rotation=45)
-
-        # # Control delays
-        # times, avgs = self.average_by_time_buckets(self.apply_controls_delays)
-        # plt.subplot(6, 1, 1)
-        # plt.plot(times, avgs, label="Control Delays (avg/5s)")
-        # plt.xlabel("Timestamp (ms)")
-        # plt.ylabel("Delay (ms)")
-        # plt.title("Control Delay Over Time")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.xticks(rotation=45)
-
-        # # Video delays
-        # times, avgs = self.average_by_time_buckets(self.send_video_frame_delays)
-        # plt.subplot(6, 1, 2)
-        # plt.plot(times, avgs, label="Video Delays (avg/5s)", color='orange')
-        # plt.xlabel("Timestamp (ms)")
-        # plt.ylabel("Delay (ms)")
-        # plt.title("Video Delay Over Time")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.xticks(rotation=45)
-
-        # # Network delays
-        # times, avgs = self.average_by_time_buckets(self.network_delays)
-        # plt.subplot(6, 1, 3)
-        # plt.plot(times, avgs, label="Network Delays (avg/5s)", color='green')
-        # plt.xlabel("Timestamp (ms)")
-        # plt.ylabel("Delay (ms)")
-        # plt.title("Network Delay Over Time")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.xticks(rotation=45)
-
-        # # FPS
-        # times, avgs = self.average_by_time_buckets(self.fps_sent_over_time)
-        # plt.subplot(6, 1, 4)
-        # plt.plot(times, avgs, label="FPS (avg/5s)", color='red')
-        # plt.xlabel("Timestamp (ms)")
-        # plt.ylabel("FPS")
-        # plt.title("FPS sent Over Time")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.xticks(rotation=45)
-
-        # # MegaBytes per second
-        # times, avgs = self.average_by_time_buckets(self.MB_sent_over_time)
-        # plt.subplot(6, 1, 5)
-        # plt.plot(times, avgs, label="MB sent (avg/5s)", color='blue')
-        # plt.xlabel("Timestamp (ms)")
-        # plt.ylabel("MB sent per second")
-        # plt.title("MB per second sent Over Time")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.xticks(rotation=45)
-
-        # # Network Signal quality (RSSI) over time
-        # times, avgs = self.average_by_time_buckets(self.wifi_signal_strength_over_time)
-        # plt.subplot(6, 1, 6)
-        # plt.plot(times, avgs, label="RSSI (avg/5s)", color='orange')
-        # plt.xlabel("Timestamp (ms)")
-        # plt.ylabel("RSSI")
-        # plt.title("Network Signal quality (RSSI) over time")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.xticks(rotation=45)
 
         plt.tight_layout()
         plt.savefig("robot_delays_over_time.png")
