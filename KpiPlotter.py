@@ -42,7 +42,7 @@ class KpiPlotter:
             print(f"Oculus files server listening on port {OCULUS_FILES_PORT}")
 
             async with websockets.connect(
-                "ws://74.56.22.147:8765/robot/ping",
+                "ws://74.56.22.147:8764/robot/ping",
                 ping_interval=None,
                 max_queue=None,
                 max_size=None
