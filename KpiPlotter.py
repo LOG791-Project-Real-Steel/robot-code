@@ -215,21 +215,25 @@ class KpiPlotter:
         # Total Video delay
         times, avgs = zip(*total_video_delay)
         total_avgs = list(avgs)
+        times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
 
-        times, avgs = zip(*avg_send_video_delay)
+        robot_times, avgs = zip(*avg_send_video_delay)
         robot = list(avgs)
+        robot_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(robot_times)]
 
-        times, avgs = zip(*avg_network_delay)
+        net_times, avgs = zip(*avg_network_delay)
         net = list(avgs)
+        net_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(net_times)]
 
-        times, avgs = zip(*avg_read_video_delay)
+        oculus_times, avgs = zip(*avg_read_video_delay)
         oculus = list(avgs)
+        oculus_times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(oculus_times)]
 
         plt.subplot(2, 1, 1)
-        plt.plot(common_video_ts, total_avgs, label="Total video delays")
-        plt.plot(common_video_ts, robot, label="Capturing and sending video delays")
-        plt.plot(common_video_ts, net, label="Network delays")
-        plt.plot(common_video_ts, oculus, label="Reading and displaying video delays")
+        plt.plot(times, total_avgs, label="Total video delays")
+        plt.plot(robot_times, robot, label="Capturing and sending video delays")
+        plt.plot(net_times, net, label="Network delays")
+        plt.plot(oculus_times, oculus, label="Reading and displaying video delays")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("Delay (ms)")
         plt.title("Video Delay Over Time (avg/1s)")
