@@ -208,6 +208,8 @@ async def main():
     car.steering_offset = 0
     car.steering = 0
     car.throttle_gain = 0.8
+
+    print("Robot is ready")
     
     backoff = 0.5
     while True:
