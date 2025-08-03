@@ -173,13 +173,13 @@ class KpiPlotter:
                 break
 
     def total_delay(self, robot, network, oculus):
-        robot_control_delay_per_second = self.average_by_time_buckets(robot)
+        robot_delay_per_second = self.average_by_time_buckets(robot)
         network_delay_per_second = self.expand_by_second(network)
-        oculus_control_delay_per_second = self.average_by_time_buckets(oculus)
+        oculus_delay_per_second = self.average_by_time_buckets(oculus)
 
-        robot_dict = dict(robot_control_delay_per_second)
+        robot_dict = dict(robot_delay_per_second)
         network_dict = dict(network_delay_per_second)
-        oculus_dict = dict(oculus_control_delay_per_second)
+        oculus_dict = dict(oculus_delay_per_second)
 
         common_timestamps = set(robot_dict) & set(network_dict) & set(oculus_dict)
 
@@ -214,6 +214,8 @@ class KpiPlotter:
         times, avgs = zip(*total_video_delay)
         times = list(times)
         avgs = list(avgs)
+        print(times)
+        print(avgs)
         plt.subplot(1, 1, 1)
         plt.plot(times, avgs, label="Total video delays (avg/1s)")
         plt.xlabel("Timestamp (ms)")
