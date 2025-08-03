@@ -149,6 +149,32 @@ class KpiPlotter:
 
         return times
     
+    def expand_by_second(self, data):
+        # Convert to seconds for easier interpolation
+        data = [(int(ts / 1000), delay) for ts, delay in data]
+        data.sort()  # Ensure sorted by timestamp
+
+        # Interpolated result
+        expanded_data = []
+
+        for i in range(len(data) - 1):
+            t_start, d_start = data[i]
+            t_end, d_end = data[i + 1]
+
+            for t in range(t_start, t_end):
+                # Linear interpolation
+                interp_delay = d_start + (d_end - d_start) * (t - t_start) / (t_end - t_start)
+                expanded_data.append((t, interp_delay))
+
+        # Add the final point
+        expanded_data.append((data[-1][0], data[-1][1]))
+
+        # Print or use as needed
+        for t, d in expanded_data:
+            print(f"{t}: {d:.2f}")
+
+        return expanded_data
+    
     def write_csv(self, list, filename):
         with open(filename+'.csv', 'w', newline='') as csvFile:
             writer = csv.writer(csvFile)
@@ -164,7 +190,7 @@ class KpiPlotter:
 
         self.write_csv(self.average_by_time_buckets(self.send_video_frame_delays), "send_video_frame_delays")
         self.write_csv(self.average_by_time_buckets(self.apply_controls_delays), "read_controls_delays")
-        self.write_csv(self.network_delays, "network_delays")
+        self.write_csv(self.expand_by_second(self.network_delays), "network_delays")
         self.write_csv(self.fps_sent_over_time, 'fps_sent_over_time')
         self.write_csv(self.average_by_time_buckets(self.MB_sent_over_time), 'MBps_sent_over_time')
 
