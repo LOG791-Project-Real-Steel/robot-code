@@ -34,7 +34,7 @@ class KpiPlotter:
         self.bps_count = 0
 
     async def start_kpi_servers(self):
-            oculus_files_server = await asyncio.start_server(
+            asyncio.start_server(
                 lambda r, w: self.handle_csv_upload(r, w),
                 host='0.0.0.0',
                 port=OCULUS_FILES_PORT
@@ -49,8 +49,6 @@ class KpiPlotter:
             ) as ws:
                 print("pingpong WebSocket connected")
                 await self.handle_stats(ws)
-
-            return oculus_files_server
     
     async def handle_stats(self, ws):
         print('Ping Pong client connected')
