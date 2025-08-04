@@ -98,9 +98,9 @@ class Camera:
 
 async def handle_video(cam: Camera, writer):
     global stats
-    global fps
 
     while True:
+        t0 = time.perf_counter()
         time_read_start = int(time.time() * 1000)
         
         data = cam.grab()
@@ -116,7 +116,7 @@ async def handle_video(cam: Camera, writer):
         else:
             print("Frame read failed.")
 
-        await asyncio.sleep(1 / (fps))
+        await asyncio.sleep(max(0.0, (1/TARGET_FPS) - (time.perf_counter() - t0)))
 
 async def handle_controls(reader, car):
     global stats
