@@ -125,10 +125,6 @@ async def handle_video(cam: Camera, writer):
 
     while True:
         time_read_start = int(time.time() * 1000)
-
-        if not stream.isOpened():
-            print("Camera error.")
-            return
         
         data = cam.grab()
         if data:
