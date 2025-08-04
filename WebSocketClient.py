@@ -18,7 +18,7 @@ def __gstreamer_pipeline(
         flip_method=0,
     ):
     return (
-            "nvarguscamerasrc sensor-id=%d ! "
+            "nvarguscamerasrc sensor-id=%d sens-mode=4 ! "
             "video/x-raw(memory:NVMM), "
             "width=(int)%d, height=(int)%d, "
             "format=(string)NV12, framerate=(fraction)%d/1 ! "
@@ -63,8 +63,8 @@ async def handle():
         camera_id=0, 
         capture_width=1280,
         capture_height=720,
-        display_width=1280,
-        display_height=720,
+        display_width=680,
+        display_height=360,
         framerate=60,
         flip_method=0), cv2.CAP_GSTREAMER)    
     car = NvidiaRacecar()
