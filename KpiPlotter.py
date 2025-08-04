@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import signal
 import aiofiles
 import pandas as pd
 import datetime
@@ -17,6 +18,14 @@ import matplotlib.dates as mdates
 PING_PONG_PORT = 9003
 OCULUS_FILES_PORT = 9004
 
+loop = asyncio.get_event_loop()
+
+# ─── graceful shutdown ────────────────────────────────────────────────
+def shutdown(loop):
+    for t in asyncio.Task.all_tasks(loop):
+        t.cancel()
+    loop.stop()
+
 class KpiPlotter:
     def __init__(self):
         self.apply_controls_delays = []
@@ -31,6 +40,9 @@ class KpiPlotter:
 
         self.fps_count = 0
         self.bps_count = 0
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, shutdown, loop)
 
     async def start_kpi_servers(self):
             ping_pong_server = await asyncio.start_server(
