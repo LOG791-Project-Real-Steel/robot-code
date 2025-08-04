@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import signal
 import sys
 import asyncio
 import json
@@ -65,29 +66,6 @@ kpi = args.kpi
 stats = KpiPlotter()
 loop = asyncio.get_event_loop()
 
-def __gstreamer_pipeline(
-        camera_id=0,
-        capture_width=width,
-        capture_height=height,
-        display_width=width,
-        display_height=height,
-        framerate=fps,
-        flip_method=0,
-    ):
-    return (
-        "nvarguscamerasrc sensor-id=%d sensor-mode=4 ! "
-        "video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, "
-        "format=(string)NV12, framerate=(fraction)%d/1 ! "
-        "nvvidconv flip-method=%d ! "
-        "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
-        "videoconvert ! video/x-raw, format=(string)BGR ! appsink max-buffers=1 drop=True"
-        % (
-            camera_id, capture_width, capture_height,
-            framerate, flip_method, display_width, display_height
-        )
-    )
-
-
 def build_pipeline(quality):
     return Gst.parse_launch(
         f"nvarguscamerasrc sensor-id=0 sensor-mode={SENSOR_MODE} ! "
@@ -97,7 +75,6 @@ def build_pipeline(quality):
         f"nvjpegenc quality={quality} ! "
         f"appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
     )
-
 
 class Camera:
     def __init__(self, q):
@@ -177,7 +154,17 @@ async def handle_control_and_video(reader, writer, car, cam: Camera):
     except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
         print("Video and control connection closed.")
 
-async def servers(car, cam: Camera):
+async def start(cam: Camera):
+    try:
+        car = NvidiaRacecar()
+    except Exception as e:
+        print(f"Warning: Failed to initialize NvidiaRacecar due to I2C error: {e}")
+        print("Using DummyRacecar instead.")
+        car = DummyRacecar()
+    car.steering = 0.0
+    car.throttle = 0.0
+    print("Robot is ready.")
+
     control_and_video_server = await asyncio.start_server(
         lambda r, w: handle_control_and_video(r, w, car, cam),
         host='0.0.0.0',
@@ -190,62 +177,21 @@ async def servers(car, cam: Camera):
 
     return control_and_video_server
 
-def read_args():
-    global width
-    global height
-    global fps
-    global kpi
-
-    n = len(sys.argv)
-    print("\nArguments passed:", end = " ")
-    try:
-        for i in range(1, n):
-            arg = sys.argv[i]
-            print(arg, end = " ")
-            if arg.startswith("res"):
-                res = arg[3:].split('=')[1].split('x')
-                width = int(res[0])
-                height = int(res[1])
-            if arg.startswith("fps"):
-                fps = int(arg[3:].split('=')[1])
-            if arg.startswith("kpi"):
-                kpi = True
-    except Exception as e:
-        print(f"\nargs error : {e}\nCorrect way to pass arguments : script.py res=1920x1080 fps=30")
-        exit
-
-    if fps >= 60:
-        fps = 1000
-    else:
-        fps += 15
+# ─── graceful shutdown ────────────────────────────────────────────────
+def shutdown(loop, cam: Camera):
+    for t in asyncio.Task.all_tasks(loop):
+        t.cancel()
+    cam.stop()
+    loop.stop()
 
 async def main():
-    read_args()
-
     cam = Camera(QUALITY)
 
-    try:
-        car = NvidiaRacecar()
-    except Exception as e:
-        print(f"Warning: Failed to initialize NvidiaRacecar due to I2C error: {e}")
-        print("Using DummyRacecar instead.")
-        car = DummyRacecar()
-
-    car.steering = 0.0
-    car.throttle = 0.0
-
-    # stream = cv2.VideoCapture(
-    #     __gstreamer_pipeline(),
-    #     cv2.CAP_GSTREAMER
-    # )
-    # if not stream.isOpened():
-    #     print("Failed to open camera.")
-    #     return
-
-    print("Robot is ready.")
-
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, shutdown, loop, cam)
+    
     # Start all servers : Sending video, receiving controls and ping pong game
-    await servers(car, cam)
+    await start(cam)
 
     # Keep the main coroutine alive
     await asyncio.Event().wait()
