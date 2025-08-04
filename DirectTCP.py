@@ -60,7 +60,7 @@ TARGET_FPS        = args.fps
 width = 1280
 height = 720
 fps = 60
-kpi = False
+kpi = args.kpi
 
 stats = KpiPlotter()
 loop = asyncio.get_event_loop()
