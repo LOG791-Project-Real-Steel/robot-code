@@ -8,6 +8,7 @@ import re
 import struct
 import subprocess
 import time
+import psutil
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -16,6 +17,14 @@ import matplotlib.dates as mdates
 
 PING_PONG_PORT = 9003
 OCULUS_FILES_PORT = 9004
+
+def get_ipv4(interface='wlan0'):
+    addrs = psutil.net_if_addrs()
+    if interface in addrs:
+        for addr in addrs[interface]:
+            if addr.family.name == 'AF_INET':
+                return addr.address
+    return None
 
 class KpiPlotter:
     def __init__(self):
@@ -28,6 +37,7 @@ class KpiPlotter:
         self.client_video_delays = []
         self.client_control_delays = []
         self.client_received_fps = []
+        self.ips_over_time = []
 
         self.fps_count = 0
         self.bps_count = 0
@@ -57,7 +67,8 @@ class KpiPlotter:
                 self.collect_bps(),
                 self.collect_network_signal(),
                 self.send_ping(writer),
-                self.read_pong(reader)
+                self.read_pong(reader),
+                self.watch_ip_change()
             )
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             print("Ping pong connection closed.")
@@ -171,6 +182,18 @@ class KpiPlotter:
             except asyncio.IncompleteReadError:
                 print("Ping connection closed.")
                 break
+
+    async def watch_ip_change(self, interface='wlan0', interval=5):
+        last_ip = get_ipv4(interface)
+        print(f"[IP Monitor] Initial IP: {last_ip}")
+        
+        while True:
+            self.ips_over_time.append((int(time.time() * 1000), last_ip))
+            await asyncio.sleep(interval)
+            current_ip = get_ipv4(interface)
+            if current_ip != last_ip:
+                print(f"[IP Monitor] IP changed: {last_ip} → {current_ip}")
+                last_ip = current_ip
 
     def total_delay(self, robot, network, oculus, filename):
         robot_delay_per_second = self.average_by_time_buckets(robot)
@@ -299,7 +322,7 @@ class KpiPlotter:
         times, avgs = zip(*mbps_sent)
         times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
         avgs = list(avgs)
-        plt.subplot(2, 1, 1)
+        plt.subplot(3, 1, 1)
         plt.plot(times, avgs, label="MBps sent by robot")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("MB sent per second")
@@ -312,11 +335,24 @@ class KpiPlotter:
         times, avgs = zip(*self.average_by_time_buckets(self.wifi_signal_strength_over_time))
         times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
         avgs = list(avgs)
-        plt.subplot(2, 1, 2)
+        plt.subplot(3, 1, 2)
         plt.plot(times, avgs, label="RSSI (avg/5s)")
         plt.xlabel("Timestamp (ms)")
         plt.ylabel("RSSI")
         plt.title("Network Signal quality (RSSI) over time")
+        plt.grid(True)
+        plt.legend()
+        plt.xticks(rotation=45)
+
+        # IPv4 over time
+        times, avgs = zip(*self.ips_over_time)
+        times = [datetime.datetime.fromtimestamp(ts/1000) for ts in sorted(times)]
+        avgs = list(avgs)
+        plt.subplot(3, 1, 3)
+        plt.plot(times, avgs, label="IPv4")
+        plt.xlabel("Timestamp (ms)")
+        plt.ylabel("IP")
+        plt.title("IPv4 changes over time")
         plt.grid(True)
         plt.legend()
         plt.xticks(rotation=45)
