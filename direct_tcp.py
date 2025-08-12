@@ -7,8 +7,7 @@ import asyncio
 import json
 import time
 from dummy_racecar import DummyRacecar
-from kpi_plotter_ws import KpiPlotter
-import cv2
+from kpi_plotter import KpiPlotter
 import struct
 import matplotlib
 matplotlib.use('Agg')

@@ -34,7 +34,7 @@ pip install -r requirements.txt
 
 - To run the `TCP Tailscale` solution code, simply run this command:
     ```bash
-    python3 add_file_here.py
+    python3 direct_tcp.py
     ```
 
 > ![NOTE]
