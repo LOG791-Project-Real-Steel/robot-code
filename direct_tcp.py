@@ -5,8 +5,8 @@ import sys
 import asyncio
 import json
 import time
-from DummyRacecar import DummyRacecar
-from KpiPlotter import KpiPlotter
+from dummy_racecar import DummyRacecar
+from kpi_plotter import KpiPlotter
 import cv2
 import struct
 import matplotlib

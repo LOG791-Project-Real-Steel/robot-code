@@ -9,8 +9,8 @@ Flags
   --logs          verbose logs (steering/throttle)
   --logsRtt       also log every RTT ping
 """
-from DummyRacecar import DummyRacecar
-from KpiPlotter import KpiPlotter
+from dummy_racecar import DummyRacecar
+from kpi_plotter import KpiPlotter
 import gi, argparse, json, asyncio, websockets, time, signal, statistics, sys
 gi.require_version('Gst', '1.0')
 gi.require_version('GstApp', '1.0')
