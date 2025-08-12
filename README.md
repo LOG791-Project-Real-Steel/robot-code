@@ -26,7 +26,7 @@ pip install -r requirements.txt
 > [!NOTE]
 > This repository should be on the **Jetson Nano** directly to help with file transfer and development.
 
-- First, you need to replace the `WebScoket` server's IP in the code with the IP on which your server runs.\
+- First, you need to replace the `WebScoket` server's IP in the `web_socket_client.py` and `kpi_plotter_ws.py` files with the IP on which your server runs.\
     Then, run the `WebSocket` solution code, simply run this command:
     ```bash
     python3 web_socket_client.py
