@@ -26,12 +26,13 @@ pip install -r requirements.txt
 > [!NOTE]
 > This repository should be on the **Jetson Nano** directly to help with file transfer and development.
 
-1. To run the `WebSocket` solution code, simply run this command:
+- First, you need to replace the `WebScoket` server's IP in the code with the IP on which your server runs.\
+    Then, run the `WebSocket` solution code, simply run this command:
     ```bash
     python3 web_socket_client.py
     ```
 
-2. To the the `TCP Tailscale` solution code, simply run this command:
+- To run the `TCP Tailscale` solution code, simply run this command:
     ```bash
     python3 add_file_here.py
     ```
