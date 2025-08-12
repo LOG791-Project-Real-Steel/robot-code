@@ -6,7 +6,7 @@ import asyncio
 import json
 import time
 from dummy_racecar import DummyRacecar
-from kpi_plotter import KpiPlotter
+from kpi_plotter_ws import KpiPlotter
 import cv2
 import struct
 import matplotlib

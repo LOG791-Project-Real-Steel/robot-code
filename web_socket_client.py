@@ -10,7 +10,7 @@ Flags
   --logsRtt       also log every RTT ping
 """
 from dummy_racecar import DummyRacecar
-from kpi_plotter import KpiPlotter
+from kpi_plotter_ws import KpiPlotter
 import gi, argparse, json, asyncio, websockets, time, signal, statistics, sys
 gi.require_version('Gst', '1.0')
 gi.require_version('GstApp', '1.0')
