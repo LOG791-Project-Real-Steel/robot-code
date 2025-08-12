@@ -8,7 +8,6 @@ import re
 import struct
 import subprocess
 import time
-import websockets
 import psutil
 import numpy as np
 import matplotlib
@@ -18,7 +17,6 @@ import matplotlib.dates as mdates
 
 PING_PONG_PORT = 9003
 OCULUS_FILES_PORT = 9004
-
 
 def get_ipv4(interface='wlan0'):
     addrs = psutil.net_if_addrs()
@@ -36,40 +34,40 @@ class KpiPlotter:
         self.fps_sent_over_time = []
         self.MB_sent_over_time = []
         self.wifi_signal_strength_over_time = []  # RSSI
-        self.ips_over_time = []
         self.client_video_delays = []
         self.client_control_delays = []
         self.client_received_fps = []
+        self.ips_over_time = []
 
         self.fps_count = 0
         self.bps_count = 0
 
     async def start_kpi_servers(self):
-            await asyncio.start_server(
+            ping_pong_server = await asyncio.start_server(
+                lambda r, w: self.handle_stats(r, w),
+                host='0.0.0.0',
+                port=PING_PONG_PORT
+            )
+            print(f"Ping pong server listening on port {PING_PONG_PORT}")
+
+            oculus_files_server = await asyncio.start_server(
                 lambda r, w: self.handle_csv_upload(r, w),
                 host='0.0.0.0',
                 port=OCULUS_FILES_PORT
             )
             print(f"Oculus files server listening on port {OCULUS_FILES_PORT}")
 
-            async with websockets.connect(
-                "ws://0.0.0.0:8764/robot/ping", # Put your server's IP here
-                ping_interval=None,
-                max_queue=None,
-                max_size=None
-            ) as ws:
-                print("pingpong WebSocket connected")
-                await self.handle_stats(ws)
+            return ping_pong_server, oculus_files_server
     
-    async def handle_stats(self, ws):
+    async def handle_stats(self, reader, writer):
         print('Ping Pong client connected')
         try:
             await asyncio.gather(
                 self.collect_fps(),
                 self.collect_bps(),
                 self.collect_network_signal(),
-                self.send_ping(ws),
-                self.read_pong(ws),
+                self.send_ping(writer),
+                self.read_pong(reader),
                 self.watch_ip_change()
             )
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
@@ -151,31 +149,39 @@ class KpiPlotter:
                 now = int(time.time() * 1000)
                 self.wifi_signal_strength_over_time.append((now, signal_dbm))
     
-    async def send_ping(self, ws):
+    async def send_ping(self, writer):
         while True:
             try:
-                print("pinging")
                 timestamp = int(time.time() * 1000)
                 ping_msg = json.dumps({"type": "ping", "timestamp": timestamp}) + '\n'
-                await ws.send(ping_msg.encode('utf-8'))
+                writer.write(ping_msg.encode('utf-8'))
+                await writer.drain()
                 await asyncio.sleep(5)
             except (ConnectionResetError, BrokenPipeError):
                 print("Ping connection lost.")
                 break
 
-    async def read_pong(self, ws):
-        async for msg in ws:
+    async def read_pong(self, reader):
+        global stats
+
+        buffer = ""
+        while True:
             try:
-                if isinstance(msg, bytes):
-                    msg = msg.decode('utf-8')
-                data = json.loads(msg)
-                print(f"Received message: {data}") # LOGS (Remove for better performance)
-                if data['type'] == "pong":
-                    self.calculate_network_delay(data["timestamp"])
-            except json.JSONDecodeError:
-                print("Error: Bad JSON from client")
-            except Exception as e:
-                print(f"Unhandled error in read_pong: {e}")
+                data = await reader.read(1024)
+                if not data:
+                    break
+                buffer += data.decode('utf-8')
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    try:
+                        msg = json.loads(line)
+                        if msg["type"] == "pong":
+                            self.calculate_network_delay(msg["timestamp"])
+                    except json.JSONDecodeError:
+                        print("Invalid JSON:", line)            
+            except asyncio.IncompleteReadError:
+                print("Ping connection closed.")
+                break
 
     async def watch_ip_change(self, interface='wlan0', interval=5):
         last_ip = get_ipv4(interface)
