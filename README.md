@@ -15,7 +15,7 @@ Code that runs on the robot itself. Creates a `Racecar` object with camera for i
 
 ## Installation
 
-If not done already, you might need to install the needed python dependencies on the robot for the code to work properly. You can do that by running the following command:
+If not done already, install the needed python dependencies on the robot. You can do that by running the following command:
 
 ```bash
 pip install -r requirements.txt
