@@ -20,8 +20,7 @@ gi.require_version('GstApp', '1.0')
 from gi.repository import Gst, GstApp
 import argparse
 
-CONTROL_PORT = 9002
-VIDEO_PORT = 9005
+VIDEO_AND_CONTROL_PORT = 9002
 
 # ─── video parameters ─────────────────────────────────────────────────
 CAPTURE_WIDTH   = 1280  # pixels
@@ -97,7 +96,7 @@ class Camera:
     def stop(self):
         self.pipeline.set_state(Gst.State.NULL)
 
-async def handle_video_frames(cam: Camera, writer):
+async def handle_video(cam: Camera, writer):
     global stats
 
     while True:
@@ -144,25 +143,16 @@ async def handle_controls(reader, car):
                 print("Invalid JSON:", line)
 
 
-async def handle_control(reader, car):
-    print("Control client connected")
+async def handle_control_and_video(reader, writer, car, cam: Camera):
+    print("Video/Control client connected")
 
     try:
         await asyncio.gather(
-            handle_controls(reader, car)
+            handle_controls(reader, car),
+            handle_video(cam, writer)
         )
     except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
-        print("Control connection closed.")
-
-async def handle_video(writer, cam: Camera):
-    print("Video client connected")
-
-    try:
-        await asyncio.gather(
-            handle_video_frames(cam, writer)
-        )
-    except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
-        print("Video connection closed.")
+        print("Video and control connection closed.")
 
 async def start(cam: Camera):
     try:
@@ -175,24 +165,17 @@ async def start(cam: Camera):
     car.throttle = 0.0
     print("Robot is ready.")
 
-    control_server = await asyncio.start_server(
-        lambda r, w: handle_control(r, car),
+    control_and_video_server = await asyncio.start_server(
+        lambda r, w: handle_control_and_video(r, w, car, cam),
         host='0.0.0.0',
-        port=CONTROL_PORT
+        port=VIDEO_AND_CONTROL_PORT
     )
-    print(f"Control server listening on port {CONTROL_PORT}")
-
-    video_server = await asyncio.start_server(
-        lambda r, w: handle_video(w, cam),
-        host='0.0.0.0',
-        port=VIDEO_PORT
-    )
-    print(f"Video server listening on port {VIDEO_PORT}")
+    print(f"Control and video server listening on port {VIDEO_AND_CONTROL_PORT}")
 
     if kpi:
         await stats.start_kpi_servers()
 
-    return control_server, video_server
+    return control_and_video_server
 
 # ─── graceful shutdown ────────────────────────────────────────────────
 def shutdown(loop, cam: Camera):
