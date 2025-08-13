@@ -37,7 +37,7 @@ pip install -r requirements.txt
     python3 direct_tcp.py
     ```
 
-> ![NOTE]
+> [!NOTE]
 > After starting the script, it might take a while for the camera and controls to fully initialize. Please be patient as this can take up to 2 minutes.
 >
 > There should be a message in the logs letting you know that the script is ready when its done initializing.
